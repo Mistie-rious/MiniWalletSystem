@@ -1,13 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "vHHmUx+96zE=",
+  "dgSpecHash": "wIaDKHyGHK0=",
   "success": true,
-  "projectFilePath": "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj",
+  "projectFilePath": "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj",
   "expectedPackageFiles": [
     "/home/mistie/.nuget/packages/adraffy.ensnormalize/0.1.5/adraffy.ensnormalize.0.1.5.nupkg.sha512",
     "/home/mistie/.nuget/packages/automapper/14.0.0/automapper.14.0.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/azure.core/1.38.0/azure.core.1.38.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/azure.identity/1.11.4/azure.identity.1.11.4.nupkg.sha512",
+    "/home/mistie/.nuget/packages/csvhelper/33.0.1/csvhelper.33.0.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/dotnetenv/3.1.1/dotnetenv.3.1.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/humanizer.core/2.14.1/humanizer.core.2.14.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/9.0.3/microsoft.aspnetcore.authentication.jwtbearer.9.0.3.nupkg.sha512",
@@ -61,6 +62,8 @@
     "/home/mistie/.nuget/packages/microsoft.sqlserver.server/1.0.0/microsoft.sqlserver.server.1.0.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/microsoft.win32.primitives/4.3.0/microsoft.win32.primitives.4.3.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/microsoft.win32.systemevents/6.0.0/microsoft.win32.systemevents.6.0.0.nupkg.sha512",
+    "/home/mistie/.nuget/packages/migradoccore.documentobjectmodel/1.3.67/migradoccore.documentobjectmodel.1.3.67.nupkg.sha512",
+    "/home/mistie/.nuget/packages/migradoccore.rendering/1.3.67/migradoccore.rendering.1.3.67.nupkg.sha512",
     "/home/mistie/.nuget/packages/mono.texttemplating/3.0.0/mono.texttemplating.3.0.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/nbitcoin.secp256k1/3.1.1/nbitcoin.secp256k1.3.1.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/nethereum.abi/4.29.0/nethereum.abi.4.29.0.nupkg.sha512",
@@ -82,6 +85,8 @@
     "/home/mistie/.nuget/packages/nethereum.web3/4.29.0/nethereum.web3.4.29.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/netstandard.library/1.6.1/netstandard.library.1.6.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/newtonsoft.json/11.0.2/newtonsoft.json.11.0.2.nupkg.sha512",
+    "/home/mistie/.nuget/packages/pdfsharpcore/1.3.67/pdfsharpcore.1.3.67.nupkg.sha512",
+    "/home/mistie/.nuget/packages/pdfsharpcore.charting/1.3.67/pdfsharpcore.charting.1.3.67.nupkg.sha512",
     "/home/mistie/.nuget/packages/portable.bouncycastle/1.8.2/portable.bouncycastle.1.8.2.nupkg.sha512",
     "/home/mistie/.nuget/packages/runtime.debian.8-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.debian.8-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
     "/home/mistie/.nuget/packages/runtime.fedora.23-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.fedora.23-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
@@ -99,6 +104,9 @@
     "/home/mistie/.nuget/packages/runtime.ubuntu.14.04-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.ubuntu.14.04-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
     "/home/mistie/.nuget/packages/runtime.ubuntu.16.04-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.ubuntu.16.04-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
     "/home/mistie/.nuget/packages/runtime.ubuntu.16.10-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.ubuntu.16.10-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
+    "/home/mistie/.nuget/packages/sharpziplib/1.4.2/sharpziplib.1.4.2.nupkg.sha512",
+    "/home/mistie/.nuget/packages/sixlabors.fonts/1.0.0-beta17/sixlabors.fonts.1.0.0-beta17.nupkg.sha512",
+    "/home/mistie/.nuget/packages/sixlabors.imagesharp/1.0.4/sixlabors.imagesharp.1.0.4.nupkg.sha512",
     "/home/mistie/.nuget/packages/sprache/2.3.1/sprache.2.3.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/swashbuckle.aspnetcore/8.0.0/swashbuckle.aspnetcore.8.0.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/swashbuckle.aspnetcore.swagger/8.0.0/swashbuckle.aspnetcore.swagger.8.0.0.nupkg.sha512",
@@ -195,6 +203,66 @@
       "warningLevel": 1,
       "message": "Package 'Newtonsoft.Json' 11.0.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-5crp-9r3c-p9vr",
       "libraryId": "Newtonsoft.Json",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23",
+      "libraryId": "SixLabors.ImageSharp",
       "targetGraphs": [
         "net9.0"
       ]

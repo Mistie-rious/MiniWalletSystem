@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Nethereum.Web3;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using WalletBackend.Data;
 
 namespace WalletBackend.Controllers
 {
@@ -8,11 +10,11 @@ namespace WalletBackend.Controllers
     [ApiController]
     public class EthereumController : ControllerBase
     {
-        // Hardcoded values; later consider using configuration for these.
+
         private readonly string _nodeUrl = "https://eth-sepolia.g.alchemy.com/v2/OPEVNKgEfgyM3w8EfPeRVzmnglTuYeEA";
         private readonly string _transactionHash = "0x7e0f9b9b7554fcd9581585e7c3abbff19d000c712db4eb5a424800c1f9452324";
-
-        // GET: api/ethereum/blocknumber
+        private readonly WalletContext _context;
+     
         [HttpGet("blocknumber")]
         public async Task<ActionResult<object>> GetBlockNumber()
         {
@@ -28,7 +30,7 @@ namespace WalletBackend.Controllers
             }
         }
 
-        // GET: api/ethereum/transaction
+ 
         [HttpGet("transaction")]
         public async Task<ActionResult<object>> GetTransactionDetails()
         {
@@ -63,6 +65,37 @@ namespace WalletBackend.Controllers
             {
                 return BadRequest(new { error = ex.Message });
             }
+        }
+        [HttpGet("check balance")]
+        public async Task<ActionResult<string>> GetBalance(string address)
+        {
+            try
+            {
+                var web3 = new Web3(_nodeUrl);
+                var balance = await web3.Eth.GetBalance.SendRequestAsync(address);
+                var balanceEth = Web3.Convert.FromWei(balance);
+                return Ok($"Balance for address: {balanceEth} ETH");
+            }
+            catch(System.Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("syncAllBalances")]
+        public async Task<ActionResult> SyncAllBalances()
+        {
+            var web3 = new Web3(_nodeUrl);
+            var wallets = await _context.Wallets.ToListAsync();
+
+            foreach (var wallet in wallets)
+            {
+                var balanceWei = await web3.Eth.GetBalance.SendRequestAsync(wallet.Address);
+                wallet.Balance = Web3.Convert.FromWei(balanceWei);
+            }
+            
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "All balances updated" });
         }
     }
 }

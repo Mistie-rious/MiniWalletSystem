@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj": {}
+    "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj": {}
   },
   "projects": {
-    "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj": {
+    "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj",
+        "projectUniqueName": "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj",
         "projectName": "WalletBackend",
-        "projectPath": "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj",
+        "projectPath": "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj",
         "packagesPath": "/home/mistie/.nuget/packages/",
-        "outputPath": "/home/mistie/Documents/projects/zone wallet/WalletBackend/obj/",
+        "outputPath": "/home/mistie/Documents/projects/zone wallet/backend/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/mistie/.nuget/NuGet/NuGet.Config"
@@ -49,6 +49,10 @@
               "target": "Package",
               "version": "[14.0.0, )"
             },
+            "CsvHelper": {
+              "target": "Package",
+              "version": "[33.0.1, )"
+            },
             "DotNetEnv": {
               "target": "Package",
               "version": "[3.1.1, )"
@@ -84,6 +88,14 @@
               "suppressParent": "All",
               "target": "Package",
               "version": "[9.0.3, )"
+            },
+            "MigraDocCore.DocumentObjectModel": {
+              "target": "Package",
+              "version": "[1.3.67, )"
+            },
+            "MigraDocCore.Rendering": {
+              "target": "Package",
+              "version": "[1.3.67, )"
             },
             "Nethereum.Web3": {
               "target": "Package",

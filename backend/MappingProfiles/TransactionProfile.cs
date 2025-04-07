@@ -7,9 +7,9 @@ using WalletBackend.Models;
 
 namespace WalletBackend.MappingProfiles;
 
-public class TransactionMapperProfile : Profile
+public class TransactionProfile : Profile
 {
-    public TransactionMapperProfile()
+    public TransactionProfile()
     {
 
         CreateMap<CreateTransactionModel, Transaction>();

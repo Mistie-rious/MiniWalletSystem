@@ -14,6 +14,13 @@ public class Transaction
     [ForeignKey((nameof(WalletId)))]
     public required Wallet Wallet { get; set; }
     
+    public string TransactionHash { get; set; }
+    public string FromAddress { get; set; }
+    
+    public string ToAddress { get; set; }
+   
+    
+    
     [Required]
     public required TransactionStatus Status { get; set; }
     

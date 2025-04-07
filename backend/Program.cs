@@ -10,6 +10,7 @@ using WalletBackend.Services;
 using WalletBackend.Services.AuthService;
 using WalletBackend.Services.TokenService;
 using WalletBackend.Services.TransactionService;
+using WalletBackend.Services.WalletService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,7 +55,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
-
+builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddHostedService<WalletBalanceService>();
 var app = builder.Build();
 
 app.MapIdentityApi<ApplicationUser>();

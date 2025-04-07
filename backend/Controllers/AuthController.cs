@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using WalletBackend.Models;
 using WalletBackend.Models.DTOS;
+using WalletBackend.Models.Responses;
 using WalletBackend.Services.AuthService;
 
 namespace WalletBackend.Controllers;
@@ -22,22 +23,23 @@ public class AuthController: ControllerBase
      public async Task<IActionResult>Register([FromBody] RegisterModel model)
      {
           if (!ModelState.IsValid)
-               return BadRequest(ModelState);
+          {
+               var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+               return BadRequest(new ApiResponse<object> { Success = false, Errors = errors });
+          }
 
           var result = await _authService.RegisterUserAsync(model);
 
           if (result.Succeeded)
           {
-               return Ok(new {message = "User registered successfully!"});
+               return Ok(new ApiResponse<object>{Success = true, Message = "User registered successfully!"});
           }
 
-          foreach (var error in result.Errors)
-               
+          else
           {
-               return BadRequest(new { message = error.Description });
+               var errors = result.Errors.Select(e => e.Description).ToList();
+               return BadRequest(new ApiResponse<object> { Success = false, Errors = errors });
           }
-
-          return BadRequest(ModelState);
      }
 
      
@@ -46,43 +48,21 @@ public class AuthController: ControllerBase
      {
           if (!ModelState.IsValid)
           {
-               return BadRequest(new { 
-                    errors = ModelState.Values
-                         .SelectMany(v => v.Errors)
-                         .Select(e => e.ErrorMessage) 
-               });
+               var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+               return BadRequest(new ApiResponse<object> { Success = false, Errors = errors });
           }
 
           var authResult = await _authService.LoginAsync(model);
 
           if (authResult.Succeeded)
           {
-               return Ok(new { 
-                    token = authResult.Token,
-                    userId = authResult.UserId,
-                    message = "Login successful" 
-               });
+               var loginResponse = new LoginResponse { Token = authResult.Token, userId = authResult.UserId };
+               return Ok(new ApiResponse<LoginResponse>{Success = true, Data = loginResponse, Message = "Login successful!"});
           }
 
-          if (authResult.IsLockedOut)
-          {
-               return Unauthorized(new { error = "Account is temporarily locked. Try again later." });
-          }
+         else return Unauthorized(new ApiResponse<object>{Success = false, Message = "Invalid username or password!"});
 
-          if (authResult.IsNotAllowed)
-          {
-               return Unauthorized(new { error = "Account is not confirmed. Check your email." });
-          }
 
-          if (authResult.RequiresTwoFactor)
-          {
-               return Ok(new { 
-                    requiresAdditionalAction = true,
-                    twoFactorRequired = true
-               });
-          }
-
-          // Invalid credentials - keep message vague for security
           return Unauthorized(new { error = "Invalid login attempt." });
      }
      

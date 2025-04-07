@@ -72,6 +72,19 @@
           }
         }
       },
+      "CsvHelper/33.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/CsvHelper.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/CsvHelper.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "DotNetEnv/3.1.1": {
         "type": "package",
         "dependencies": {
@@ -1167,6 +1180,32 @@
           }
         }
       },
+      "MigraDocCore.DocumentObjectModel/1.3.67": {
+        "type": "package",
+        "dependencies": {
+          "PdfSharpCore": "1.3.67"
+        },
+        "compile": {
+          "lib/net8.0/MigraDocCore.DocumentObjectModel.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/MigraDocCore.DocumentObjectModel.dll": {}
+        }
+      },
+      "MigraDocCore.Rendering/1.3.67": {
+        "type": "package",
+        "dependencies": {
+          "MigraDocCore.DocumentObjectModel": "1.3.67",
+          "PdfSharpCore": "1.3.67",
+          "PdfSharpCore.Charting": "1.3.67"
+        },
+        "compile": {
+          "lib/net8.0/MigraDocCore.Rendering.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/MigraDocCore.Rendering.dll": {}
+        }
+      },
       "Mono.TextTemplating/3.0.0": {
         "type": "package",
         "dependencies": {
@@ -1514,6 +1553,37 @@
           }
         }
       },
+      "PdfSharpCore/1.3.67": {
+        "type": "package",
+        "dependencies": {
+          "SharpZipLib": "1.4.2",
+          "SixLabors.Fonts": "1.0.0-beta17",
+          "SixLabors.ImageSharp": "1.0.4"
+        },
+        "compile": {
+          "lib/net8.0/PdfSharpCore.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/PdfSharpCore.dll": {}
+        },
+        "resource": {
+          "lib/net8.0/de/PdfSharpCore.resources.dll": {
+            "locale": "de"
+          }
+        }
+      },
+      "PdfSharpCore.Charting/1.3.67": {
+        "type": "package",
+        "dependencies": {
+          "PdfSharpCore": "1.3.67"
+        },
+        "compile": {
+          "lib/net8.0/PdfSharpCore.Charting.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/PdfSharpCore.Charting.dll": {}
+        }
+      },
       "Portable.BouncyCastle/1.8.2": {
         "type": "package",
         "compile": {
@@ -1695,6 +1765,45 @@
           "runtimes/ubuntu.16.10-x64/native/System.Security.Cryptography.Native.OpenSsl.so": {
             "assetType": "native",
             "rid": "ubuntu.16.10-x64"
+          }
+        }
+      },
+      "SharpZipLib/1.4.2": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/ICSharpCode.SharpZipLib.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/ICSharpCode.SharpZipLib.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "SixLabors.Fonts/1.0.0-beta17": {
+        "type": "package",
+        "compile": {
+          "lib/netcoreapp3.1/SixLabors.Fonts.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netcoreapp3.1/SixLabors.Fonts.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "SixLabors.ImageSharp/1.0.4": {
+        "type": "package",
+        "compile": {
+          "lib/netcoreapp3.1/SixLabors.ImageSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netcoreapp3.1/SixLabors.ImageSharp.dll": {
+            "related": ".xml"
           }
         }
       },
@@ -3422,6 +3531,34 @@
         "azureicon.png",
         "lib/netstandard2.0/Azure.Identity.dll",
         "lib/netstandard2.0/Azure.Identity.xml"
+      ]
+    },
+    "CsvHelper/33.0.1": {
+      "sha512": "fev4lynklAU2A9GVMLtwarkwaanjSYB4wUqO2nOJX5hnzObORzUqVLe+bDYCUyIIRQM4o5Bsq3CcyJR89iMmEQ==",
+      "type": "package",
+      "path": "csvhelper/33.0.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "csvhelper.33.0.1.nupkg.sha512",
+        "csvhelper.nuspec",
+        "lib/net462/CsvHelper.dll",
+        "lib/net462/CsvHelper.xml",
+        "lib/net47/CsvHelper.dll",
+        "lib/net47/CsvHelper.xml",
+        "lib/net48/CsvHelper.dll",
+        "lib/net48/CsvHelper.xml",
+        "lib/net6.0/CsvHelper.dll",
+        "lib/net6.0/CsvHelper.xml",
+        "lib/net7.0/CsvHelper.dll",
+        "lib/net7.0/CsvHelper.xml",
+        "lib/net8.0/CsvHelper.dll",
+        "lib/net8.0/CsvHelper.xml",
+        "lib/netstandard2.0/CsvHelper.dll",
+        "lib/netstandard2.0/CsvHelper.xml",
+        "lib/netstandard2.1/CsvHelper.dll",
+        "lib/netstandard2.1/CsvHelper.xml"
       ]
     },
     "DotNetEnv/3.1.1": {
@@ -5649,6 +5786,44 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "MigraDocCore.DocumentObjectModel/1.3.67": {
+      "sha512": "R4t94wxllytAst//xumJCE9Si0vYFC3IR7kKcXyTbDS8lZIatE+upIfpGwa0EB/Oc6lOng/Hk4w5fxCmN+7Oug==",
+      "type": "package",
+      "path": "migradoccore.documentobjectmodel/1.3.67",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "README.md",
+        "lib/net5.0/MigraDocCore.DocumentObjectModel.dll",
+        "lib/net6.0/MigraDocCore.DocumentObjectModel.dll",
+        "lib/net7.0/MigraDocCore.DocumentObjectModel.dll",
+        "lib/net8.0/MigraDocCore.DocumentObjectModel.dll",
+        "lib/netcoreapp3.1/MigraDocCore.DocumentObjectModel.dll",
+        "lib/netstandard2.0/MigraDocCore.DocumentObjectModel.dll",
+        "migradoccore.documentobjectmodel.1.3.67.nupkg.sha512",
+        "migradoccore.documentobjectmodel.nuspec"
+      ]
+    },
+    "MigraDocCore.Rendering/1.3.67": {
+      "sha512": "beiQGDhOa/fCQtp4KCW+rSwbwVKa/mQsJnacrtLkPGtFOK5nwWktp+4llBOzS7OXzaGNlTGWlPX5KJNtmU8juA==",
+      "type": "package",
+      "path": "migradoccore.rendering/1.3.67",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "README.md",
+        "lib/net5.0/MigraDocCore.Rendering.dll",
+        "lib/net6.0/MigraDocCore.Rendering.dll",
+        "lib/net7.0/MigraDocCore.Rendering.dll",
+        "lib/net8.0/MigraDocCore.Rendering.dll",
+        "lib/netcoreapp3.1/MigraDocCore.Rendering.dll",
+        "lib/netstandard2.0/MigraDocCore.Rendering.dll",
+        "migradoccore.rendering.1.3.67.nupkg.sha512",
+        "migradoccore.rendering.nuspec"
+      ]
+    },
     "Mono.TextTemplating/3.0.0": {
       "sha512": "YqueG52R/Xej4VVbKuRIodjiAhV0HR/XVbLbNrJhCZnzjnSjgMJ/dCdV0akQQxavX6hp/LC6rqLGLcXeQYU7XA==",
       "type": "package",
@@ -6065,6 +6240,50 @@
         "newtonsoft.json.nuspec"
       ]
     },
+    "PdfSharpCore/1.3.67": {
+      "sha512": "6Cvj9nX6RwIJFIQC8eJFCYYUu9Qa2t9LWh4i0SXFi3hqkX/ssUGKfzp+9JZZXbkp0lHeeH/9UYFHelLqIusPrQ==",
+      "type": "package",
+      "path": "pdfsharpcore/1.3.67",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "README.md",
+        "lib/net5.0/PdfSharpCore.dll",
+        "lib/net5.0/de/PdfSharpCore.resources.dll",
+        "lib/net6.0/PdfSharpCore.dll",
+        "lib/net6.0/de/PdfSharpCore.resources.dll",
+        "lib/net7.0/PdfSharpCore.dll",
+        "lib/net7.0/de/PdfSharpCore.resources.dll",
+        "lib/net8.0/PdfSharpCore.dll",
+        "lib/net8.0/de/PdfSharpCore.resources.dll",
+        "lib/netcoreapp3.1/PdfSharpCore.dll",
+        "lib/netcoreapp3.1/de/PdfSharpCore.resources.dll",
+        "lib/netstandard2.0/PdfSharpCore.dll",
+        "lib/netstandard2.0/de/PdfSharpCore.resources.dll",
+        "pdfsharpcore.1.3.67.nupkg.sha512",
+        "pdfsharpcore.nuspec"
+      ]
+    },
+    "PdfSharpCore.Charting/1.3.67": {
+      "sha512": "iJa5gS10m/76tPVPTEz06jgGCtS5sd5HmAJT0JZf4QYViz40YH5Xpt1CPktjeMXzylGH1Rd6RcS6Y5y33YijKQ==",
+      "type": "package",
+      "path": "pdfsharpcore.charting/1.3.67",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "README.md",
+        "lib/net5.0/PdfSharpCore.Charting.dll",
+        "lib/net6.0/PdfSharpCore.Charting.dll",
+        "lib/net7.0/PdfSharpCore.Charting.dll",
+        "lib/net8.0/PdfSharpCore.Charting.dll",
+        "lib/netcoreapp3.1/PdfSharpCore.Charting.dll",
+        "lib/netstandard2.0/PdfSharpCore.Charting.dll",
+        "pdfsharpcore.charting.1.3.67.nupkg.sha512",
+        "pdfsharpcore.charting.nuspec"
+      ]
+    },
     "Portable.BouncyCastle/1.8.2": {
       "sha512": "XpJVIhjPiO0o+DU36eeIzqnRilDmE8Z7Kfhm9V9o1yNqM3ikgleD94Z5W/LeEu3t63LaZl2CNJexaix+I6AUMg==",
       "type": "package",
@@ -6308,6 +6527,69 @@
         "runtime.ubuntu.16.10-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
         "runtime.ubuntu.16.10-x64.runtime.native.system.security.cryptography.openssl.nuspec",
         "runtimes/ubuntu.16.10-x64/native/System.Security.Cryptography.Native.OpenSsl.so"
+      ]
+    },
+    "SharpZipLib/1.4.2": {
+      "sha512": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A==",
+      "type": "package",
+      "path": "sharpziplib/1.4.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "images/sharpziplib-nuget-256x256.png",
+        "lib/net6.0/ICSharpCode.SharpZipLib.dll",
+        "lib/net6.0/ICSharpCode.SharpZipLib.pdb",
+        "lib/net6.0/ICSharpCode.SharpZipLib.xml",
+        "lib/netstandard2.0/ICSharpCode.SharpZipLib.dll",
+        "lib/netstandard2.0/ICSharpCode.SharpZipLib.pdb",
+        "lib/netstandard2.0/ICSharpCode.SharpZipLib.xml",
+        "lib/netstandard2.1/ICSharpCode.SharpZipLib.dll",
+        "lib/netstandard2.1/ICSharpCode.SharpZipLib.pdb",
+        "lib/netstandard2.1/ICSharpCode.SharpZipLib.xml",
+        "sharpziplib.1.4.2.nupkg.sha512",
+        "sharpziplib.nuspec"
+      ]
+    },
+    "SixLabors.Fonts/1.0.0-beta17": {
+      "sha512": "qubgVovAoSR7vyv9tJ68gSzRIPWz7HBjTM9rwAaLjpcJ6T50arnX+GHAZcC0r2mVagyRMknCNda3DGoe8StUUQ==",
+      "type": "package",
+      "path": "sixlabors.fonts/1.0.0-beta17",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/netcoreapp3.1/SixLabors.Fonts.dll",
+        "lib/netcoreapp3.1/SixLabors.Fonts.xml",
+        "lib/netstandard2.0/SixLabors.Fonts.dll",
+        "lib/netstandard2.0/SixLabors.Fonts.xml",
+        "lib/netstandard2.1/SixLabors.Fonts.dll",
+        "lib/netstandard2.1/SixLabors.Fonts.xml",
+        "sixlabors.fonts.1.0.0-beta17.nupkg.sha512",
+        "sixlabors.fonts.128.png",
+        "sixlabors.fonts.nuspec"
+      ]
+    },
+    "SixLabors.ImageSharp/1.0.4": {
+      "sha512": "H2rPiEr2ddBOltOuqRYhpLBAsQXDAhbzMMhhuksnBG2oefup1MXMchALe7yYkKJksNbtxbZHKeM6dn/68I75qw==",
+      "type": "package",
+      "path": "sixlabors.imagesharp/1.0.4",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net472/SixLabors.ImageSharp.dll",
+        "lib/net472/SixLabors.ImageSharp.xml",
+        "lib/netcoreapp2.1/SixLabors.ImageSharp.dll",
+        "lib/netcoreapp2.1/SixLabors.ImageSharp.xml",
+        "lib/netcoreapp3.1/SixLabors.ImageSharp.dll",
+        "lib/netcoreapp3.1/SixLabors.ImageSharp.xml",
+        "lib/netstandard1.3/SixLabors.ImageSharp.dll",
+        "lib/netstandard1.3/SixLabors.ImageSharp.xml",
+        "lib/netstandard2.0/SixLabors.ImageSharp.dll",
+        "lib/netstandard2.0/SixLabors.ImageSharp.xml",
+        "lib/netstandard2.1/SixLabors.ImageSharp.dll",
+        "lib/netstandard2.1/SixLabors.ImageSharp.xml",
+        "sixlabors.imagesharp.1.0.4.nupkg.sha512",
+        "sixlabors.imagesharp.128.png",
+        "sixlabors.imagesharp.nuspec"
       ]
     },
     "Sprache/2.3.1": {
@@ -10314,6 +10596,7 @@
   "projectFileDependencyGroups": {
     "net9.0": [
       "AutoMapper >= 14.0.0",
+      "CsvHelper >= 33.0.1",
       "DotNetEnv >= 3.1.1",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 9.0.3",
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore >= 9.0.3",
@@ -10322,6 +10605,8 @@
       "Microsoft.EntityFrameworkCore.Design >= 9.0.3",
       "Microsoft.EntityFrameworkCore.SqlServer >= 9.0.3",
       "Microsoft.EntityFrameworkCore.Tools >= 9.0.3",
+      "MigraDocCore.DocumentObjectModel >= 1.3.67",
+      "MigraDocCore.Rendering >= 1.3.67",
       "Nethereum.Web3 >= 4.29.0",
       "Swashbuckle.AspNetCore >= 8.0.0"
     ]
@@ -10332,11 +10617,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj",
+      "projectUniqueName": "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj",
       "projectName": "WalletBackend",
-      "projectPath": "/home/mistie/Documents/projects/zone wallet/WalletBackend/WalletBackend.csproj",
+      "projectPath": "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj",
       "packagesPath": "/home/mistie/.nuget/packages/",
-      "outputPath": "/home/mistie/Documents/projects/zone wallet/WalletBackend/obj/",
+      "outputPath": "/home/mistie/Documents/projects/zone wallet/backend/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/mistie/.nuget/NuGet/NuGet.Config"
@@ -10374,6 +10659,10 @@
             "target": "Package",
             "version": "[14.0.0, )"
           },
+          "CsvHelper": {
+            "target": "Package",
+            "version": "[33.0.1, )"
+          },
           "DotNetEnv": {
             "target": "Package",
             "version": "[3.1.1, )"
@@ -10409,6 +10698,14 @@
             "suppressParent": "All",
             "target": "Package",
             "version": "[9.0.3, )"
+          },
+          "MigraDocCore.DocumentObjectModel": {
+            "target": "Package",
+            "version": "[1.3.67, )"
+          },
+          "MigraDocCore.Rendering": {
+            "target": "Package",
+            "version": "[1.3.67, )"
           },
           "Nethereum.Web3": {
             "target": "Package",
@@ -10449,6 +10746,66 @@
       "warningLevel": 1,
       "message": "Package 'Newtonsoft.Json' 11.0.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-5crp-9r3c-p9vr",
       "libraryId": "Newtonsoft.Json",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net9.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 1.0.4 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23",
+      "libraryId": "SixLabors.ImageSharp",
       "targetGraphs": [
         "net9.0"
       ]
