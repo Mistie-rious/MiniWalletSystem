@@ -35,10 +35,10 @@ public class WalletBalanceService : BackgroundService
                     
                     var walletTasks = wallets.Select(async wallet => {
                         var balanceWei = await web3.Eth.GetBalance.SendRequestAsync(wallet.Address);
-                        var balanceEth = Web3.Convert.FromWei(balanceWei);
+                        var balanceEth = (decimal)Web3.Convert.FromWei(balanceWei);
                         
-                     
-                        if (wallet.Balance != balanceEth)
+                        if (Math.Abs(wallet.Balance - balanceEth) > 0.00000001m)
+
                         {
                             wallet.Balance = balanceEth;
                             wallet.UpdatedAt = DateTime.UtcNow;

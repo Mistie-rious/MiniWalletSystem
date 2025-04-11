@@ -57,6 +57,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddHostedService<WalletBalanceService>();
+builder.Services.AddHostedService<TransactionMonitorService>();
 var app = builder.Build();
 
 app.MapIdentityApi<ApplicationUser>();

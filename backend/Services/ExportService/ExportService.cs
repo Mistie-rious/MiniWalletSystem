@@ -55,8 +55,8 @@ public class ExportService: IExportService
                 var row = table.AddRow();
                 row.Cells[0].AddParagraph(tx.Id.ToString());
                 row.Cells[1].AddParagraph(tx.CreatedAt.ToString("yyyy-MM-dd"));
-                row.Cells[2].AddParagraph(tx.FromAddress);
-                row.Cells[3].AddParagraph(tx.ToAddress);
+                row.Cells[2].AddParagraph(tx.SenderAddress);
+                row.Cells[3].AddParagraph(tx.ReceiverAddress);
                 row.Cells[4].AddParagraph(tx.Amount.ToString("N2"));
                 row.Cells[5].AddParagraph(tx.Status.ToString());
             }

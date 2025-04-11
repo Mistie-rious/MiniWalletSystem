@@ -395,3 +395,14 @@
 /home/mistie/Documents/projects/zone wallet/backend/obj/Debug/net9.0/WalletBackend.pdb
 /home/mistie/Documents/projects/zone wallet/backend/obj/Debug/net9.0/WalletBackend.genruntimeconfig.cache
 /home/mistie/Documents/projects/zone wallet/backend/obj/Debug/net9.0/ref/WalletBackend.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/CsvHelper.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/MigraDocCore.DocumentObjectModel.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/MigraDocCore.Rendering.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/PdfSharpCore.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/PdfSharpCore.Charting.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/ICSharpCode.SharpZipLib.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/SixLabors.Fonts.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/SixLabors.ImageSharp.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/de/PdfSharpCore.resources.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/NBitcoin.dll
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/Nethereum.HdWallet.dll

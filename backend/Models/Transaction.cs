@@ -6,18 +6,20 @@ namespace WalletBackend.Models;
 
 public class Transaction
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     
     [Required]
-    public int WalletId { get; set; }
+    public Guid WalletId { get; set; }
     
     [ForeignKey((nameof(WalletId)))]
-    public required Wallet Wallet { get; set; }
+    public  Wallet Wallet { get; set; }
     
     public string TransactionHash { get; set; }
-    public string FromAddress { get; set; }
+    public string SenderAddress { get; set; }
     
-    public string ToAddress { get; set; }
+    public string ReceiverAddress { get; set; }
+    
+
    
     
     
@@ -35,7 +37,7 @@ public class Transaction
     public decimal Amount { get; set; }
     
     [MaxLength(10)]
-    public required string Currency { get; set; } = "NGN";
+    public string Currency { get; set; } = "NGN";
     
     [MaxLength(255)]
     public string? Description { get; set; }

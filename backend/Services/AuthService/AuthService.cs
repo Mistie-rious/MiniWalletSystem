@@ -4,6 +4,7 @@ using System.Text;
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using NBitcoin;
 using WalletBackend.Data;
 using WalletBackend.Models;
 using WalletBackend.Models.DTOS;
@@ -42,9 +43,9 @@ public class AuthService : IAuthService
    
         var user = _mapper.Map<ApplicationUser>(model);
         var result = await _userManager.CreateAsync(user, model.Password);
-    
-        var (privateKey, address) = _walletService.CreateNewWallet();
-        if (result.Succeeded)
+        string passphrase = "my-secure-password";
+
+        var (encryptedKeyStore, address, mnemonic) = _walletService.CreateNewWallet(passphrase);
         {
             var wallet = new Wallet
             {
@@ -52,6 +53,7 @@ public class AuthService : IAuthService
                 Balance = 0,
                 UserId = user.Id,
                 Address = address,
+                EncryptedKeyStore = encryptedKeyStore
             };
             
             _context.Wallets.Add(wallet);

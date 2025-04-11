@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using NBitcoin;
+using Nethereum.HdWallet;
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.KeyStore;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Signer;
 using WalletBackend.Data;
@@ -17,15 +21,41 @@ public class WalletService : IWalletService
     {
         _context = context;
     }
-    public (string PrivateKey, string PublicKey) CreateNewWallet()
+
+    public (string EncryptedKeyStore, string Address, string Mnemonic) CreateNewWallet(string passphrase)
     {
-        var ecKey = EthECKey.GenerateKey();
-        string privateKey = ecKey.GetPrivateKey();
-        string address = ecKey.GetPublicAddress();
-        return (privateKey, address);
+        var mnemonic = new Mnemonic(Wordlist.English, WordCount.TwentyFour);
+        string mnemonicPhrase = mnemonic.ToString();
+
+        var wallet = new Wallet(mnemonicPhrase, null);
+        var account = wallet.GetAccount(0);
+        string privateKey = account.PrivateKey;
+        string address = account.Address;
+
+        var keyStoreService = new KeyStoreService();
+        string encryptedKeyStore = keyStoreService.EncryptAndGenerateDefaultKeyStoreAsJson(
+            passphrase, 
+            privateKey.HexToByteArray(), 
+            address);
+    
+        return (encryptedKeyStore, address, mnemonicPhrase);
     }
 
-    public async Task<List<Transaction>> GetTransactions(int walletId, string userId)
+    public string SignTransaction(string encryptedKeyStore, string passphrase, string transactionData)
+    {
+        var keyStoreService = new KeyStoreService();
+        byte[] privateKeyBytes = keyStoreService.DecryptKeyStoreFromJson(passphrase, encryptedKeyStore);
+
+        var privateKey = privateKeyBytes.ToHex();
+        var signer = new MessageSigner();
+        string signature = signer.HashAndSign(transactionData, privateKey);
+
+        Array.Clear(privateKeyBytes, 0, privateKeyBytes.Length);
+
+        return signature;
+    }
+
+    public async Task<List<Transaction>> GetTransactions(Guid walletId, string userId)
     {
         var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.Id == walletId && w.UserId == userId);
 

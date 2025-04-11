@@ -5,7 +5,7 @@ namespace WalletBackend.Models;
 
 public class Wallet
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     [Required]
     [Column(TypeName = "decimal(18,2)")]
     public required decimal Balance { get; set; }
@@ -19,6 +19,8 @@ public class Wallet
    
    public DateTime CreatedAt { get; set; }
    public DateTime? UpdatedAt { get; set; }
+   
+   public string EncryptedKeyStore { get; set; }
    
    public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 

@@ -1,4 +1,5 @@
 using WalletBackend.Models.DTOS.Transaction;
+using WalletBackend.Models.Responses;
 
 namespace WalletBackend.Services.TransactionService;
 
@@ -9,4 +10,5 @@ public interface ITransactionService
     Task<UpdateTransactionModel> UpdateTransactionAsync(UpdateTransactionModel model);
     Task<DeleteTransactionModel> DeleteTransactionAsync(int transactionId);
     Task<ViewTransactionModel?> ViewTransactionAsync(int transactionId);
+    Task<TransactionResult> SendMoneyAsync(TransactionRequest request);
 }
