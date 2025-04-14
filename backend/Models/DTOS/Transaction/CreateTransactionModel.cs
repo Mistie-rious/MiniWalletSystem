@@ -17,6 +17,6 @@ public class CreateTransactionModel
     [MaxLength(10)]
     public required string Currency { get; set; } = "NGN";
     [Required]
-    public int WalletId { get; set; }
+    public Guid WalletId { get; set; }
     
 }

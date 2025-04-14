@@ -1,74 +1,184 @@
 using System.Globalization;
+using System.Text;
 using CsvHelper;
-using MigraDocCore.DocumentObjectModel;
-using MigraDocCore.Rendering;
+using CsvHelper;
+using iText.IO.Font.Constants;
+using iText.Kernel.Font;
+using iText.Kernel.Pdf;
+using iText.Layout;
+using iText.Layout.Element;
+using iText.Layout.Properties;
+using Microsoft.EntityFrameworkCore;
+
+using WalletBackend.Data;
 using WalletBackend.Models;
+using Document = iText.Layout.Document;
+
 
 namespace WalletBackend.Services.ExportService;
 
 public class ExportService: IExportService
+
+
 {
-    public async Task<Stream> ExportToCsvAsync(IEnumerable<Transaction> transactions)
+    private readonly WalletContext _context;
+    private readonly ILogger<ExportService> _logger;
+    
+    public ExportService(WalletContext context, ILogger<ExportService> logger)
     {
-        var memoryStream = new MemoryStream();
-        using (var writer = new StreamWriter(memoryStream, leaveOpen: true))
-        using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
-        {
-            await csv.WriteRecordsAsync(transactions);
-        }
-        memoryStream.Position = 0;
-        return memoryStream;
+        _context = context;
+        _logger = logger;
     }
-
-    public async Task<Stream> ExportToPdfAsync(IEnumerable<Transaction> transactions)
-    {
-        return await Task.Run(() =>
+    
+    public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? startDate, DateTime? endDate)
         {
-           
-            var document = new Document();
-            var section = document.AddSection();
-            section.AddParagraph("Transaction History").Format.Font.Size = 14;
-
-         
-            var table = section.AddTable();
-            table.AddColumn("50pt");  // ID
-            table.AddColumn("100pt"); // Date
-            table.AddColumn("150pt"); // From
-            table.AddColumn("150pt"); // To
-            table.AddColumn("100pt"); // Amount
-            table.AddColumn("100pt"); // Status
-
-         
-            var headerRow = table.AddRow();
-            headerRow.HeadingFormat = true;
-            headerRow.Format.Font.Bold = true;
-            headerRow.Cells[0].AddParagraph("ID");
-            headerRow.Cells[1].AddParagraph("Date");
-            headerRow.Cells[2].AddParagraph("From");
-            headerRow.Cells[3].AddParagraph("To");
-            headerRow.Cells[4].AddParagraph("Amount");
-            headerRow.Cells[5].AddParagraph("Status");
-
-            // Add transaction data rows
-            foreach (var tx in transactions)
+            try
             {
-                var row = table.AddRow();
-                row.Cells[0].AddParagraph(tx.Id.ToString());
-                row.Cells[1].AddParagraph(tx.CreatedAt.ToString("yyyy-MM-dd"));
-                row.Cells[2].AddParagraph(tx.SenderAddress);
-                row.Cells[3].AddParagraph(tx.ReceiverAddress);
-                row.Cells[4].AddParagraph(tx.Amount.ToString("N2"));
-                row.Cells[5].AddParagraph(tx.Status.ToString());
+                var query = _context.Transactions
+                    .Where(t => t.WalletId == walletId);
+
+                if (startDate.HasValue)
+                {
+                    query = query.Where(t => t.CreatedAt >= startDate.Value);
+                }
+
+                if (endDate.HasValue)
+                {
+                    query = query.Where(t => t.CreatedAt <= endDate.Value);
+                }
+
+                var transactions = await query
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ToListAsync();
+
+                if (!transactions.Any())
+                {
+                    _logger.LogInformation("No transactions found for wallet {WalletId} to export.", walletId);
+                    return null;
+                }
+
+                using (var memoryStream = new MemoryStream())
+                using (var writer = new StreamWriter(memoryStream))
+                using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+                {
+                    csv.WriteRecords(transactions.Select(t => new
+                    {
+                        TransactionHash = t.TransactionHash,
+                        SenderAddress = t.SenderAddress,
+                        ReceiverAddress = t.ReceiverAddress,
+                        Amount = t.Amount,
+                        Currency = t.Currency,
+                        Status = t.Status.ToString(),
+                        Type = t.Type.ToString(),
+                        BlockNumber = t.BlockNumber,
+                        CreatedAt = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                        Description = t.Description
+                    }));
+
+                    await writer.FlushAsync();
+                    var csvContent = Encoding.UTF8.GetString(memoryStream.ToArray());
+                    _logger.LogInformation("Exported {TransactionCount} transactions to CSV for wallet {WalletId}.", transactions.Count, walletId);
+                    return csvContent;
+                }
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting transactions to CSV for wallet {WalletId}.", walletId);
+                throw;
+            }
+        }
+        
+        
+         public async Task<byte[]> ExportTransactionsToPdfAsync(Guid walletId, DateTime? startDate, DateTime? endDate)
+        {
+            try
+            {
+                var query = _context.Transactions
+                    .Where(t => t.WalletId == walletId);
 
-          
-            var renderer = new PdfDocumentRenderer { Document = document };
-            renderer.RenderDocument();
+                if (startDate.HasValue)
+                {
+                    query = query.Where(t => t.CreatedAt >= startDate.Value);
+                }
 
-            var memoryStream = new MemoryStream();
-            renderer.PdfDocument.Save(memoryStream);
-            memoryStream.Position = 0;
-            return memoryStream;
-        });
-    }
+                if (endDate.HasValue)
+                {
+                    query = query.Where(t => t.CreatedAt <= endDate.Value);
+                }
+
+                var transactions = await query
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ToListAsync();
+
+                if (!transactions.Any())
+                {
+                    _logger.LogInformation("No transactions found for wallet {WalletId} to export to PDF.", walletId);
+                    return null;
+                }
+
+                using (var memoryStream = new MemoryStream())
+                {
+                    using (var writer = new PdfWriter(memoryStream))
+                    using (var pdf = new PdfDocument(writer))
+                    {
+                        var document = new Document(pdf);
+
+                        // Add title
+                        document.Add(new Paragraph($"Transaction History for Wallet {walletId}")
+                            .SetFontSize(16)
+                            .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD)));
+
+                        // Add date range if specified
+                        if (startDate.HasValue || endDate.HasValue)
+                        {
+                            var dateRange = $"From: {(startDate.HasValue ? startDate.Value.ToString("yyyy-MM-dd") : "Beginning")} " +
+                                            $"To: {(endDate.HasValue ? endDate.Value.ToString("yyyy-MM-dd") : "Now")}";
+                            document.Add(new Paragraph(dateRange).SetFontSize(10));
+                        }
+
+                        // Create table with 10 columns
+                        var table = new Table(UnitValue.CreatePercentArray(new float[] { 15, 15, 15, 10, 8, 8, 8, 8, 8, 15 }))
+                            .UseAllAvailableWidth();
+
+                        // Add headers
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Hash").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Sender") .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Receiver") .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Amount").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Currency").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Status").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Type").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Block").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Date").SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+                        table.AddHeaderCell(new Cell().Add(new Paragraph("Description") .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))));
+
+                        // Add transaction rows
+                        foreach (var tx in transactions)
+                        {
+                            table.AddCell(new Cell().Add(new Paragraph(tx.TransactionHash?.Substring(0, Math.Min(tx.TransactionHash.Length, 10)) + "...")));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.SenderAddress?.Substring(0, Math.Min(tx.SenderAddress.Length, 10)) + "...")));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.ReceiverAddress?.Substring(0, Math.Min(tx.ReceiverAddress.Length, 10)) + "...")));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.Amount.ToString("F6"))));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.Currency ?? "N/A")));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.Status.ToString())));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.Type.ToString())));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.BlockNumber ?? "N/A")));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.CreatedAt.ToString("yyyy-MM-dd HH:mm"))));
+                            table.AddCell(new Cell().Add(new Paragraph(tx.Description ?? "N/A")));
+                        }
+
+                        document.Add(table);
+                        document.Close();
+                    }
+
+                    _logger.LogInformation("Exported {TransactionCount} transactions to PDF for wallet {WalletId}.", transactions.Count, walletId);
+                    return memoryStream.ToArray();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting transactions to PDF for wallet {WalletId}.", walletId);
+                throw;
+            }
+        }
 }

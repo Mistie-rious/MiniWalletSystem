@@ -6,7 +6,7 @@ namespace WalletBackend.Models.DTOS.Transaction;
 public class UpdateTransactionModel
 {
     
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     [Required]
     public decimal Amount { get; set; }
     [Required]

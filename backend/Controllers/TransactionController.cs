@@ -1,5 +1,8 @@
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using Nethereum.Web3;
 using WalletBackend.Models.DTOS.Transaction;
+using WalletBackend.Models.Enums;
 using WalletBackend.Models.Responses;
 using WalletBackend.Services.TransactionService;
 using WalletBackend.Services.WalletService;
@@ -13,13 +16,16 @@ public class TransactionController: ControllerBase
     private readonly ITransactionService _transactionService;
     private readonly ILogger<TransactionController> _logger;
     private readonly IWalletService _walletService;
+    private readonly string _nodeUrl;
   
 
-    public TransactionController(ITransactionService transactionService, ILogger<TransactionController> logger, IWalletService walletService)
+    public TransactionController(ITransactionService transactionService, ILogger<TransactionController> logger, IWalletService walletService , IConfiguration configuration)
     {
         _transactionService = transactionService;
         _logger = logger;
         _walletService = walletService;
+        _nodeUrl = configuration["Ethereum:NodeUrl"];
+
     }
     
     [HttpPost("create")]
@@ -88,4 +94,45 @@ public class TransactionController: ControllerBase
             return StatusCode(500, "An error occurred while processing the transaction");
         }
     }
+    
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchTransactions(
+        [FromQuery] Guid? walletId,
+        [FromQuery] DateTime? startDate, 
+        [FromQuery] DateTime? endDate,
+        [FromQuery] decimal? minAmount,
+        [FromQuery] decimal? maxAmount,
+        [FromQuery] string? transactionHash,
+        [FromQuery] TransactionStatus? status)
+    {
+        try
+        {
+            var transactions = await _transactionService.SearchTransactionsAsync(
+                walletId, startDate, endDate, minAmount, maxAmount, transactionHash, status);
+            
+            return Ok(transactions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching transactions");
+            return StatusCode(500, $"Internal server error: {ex.Message}");
+        }
+    }
+    
+    [HttpGet("balance")]
+        public async Task<ActionResult<string>> GetBalance(string address)
+        {
+            try
+            {
+                var web3 = new Web3(_nodeUrl);
+                var balance = await web3.Eth.GetBalance.SendRequestAsync(address);
+                var balanceEth = Web3.Convert.FromWei(balance);
+                return Ok($"Balance for address: {balanceEth} ETH");
+            }
+            catch(System.Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    
 }

@@ -66,21 +66,7 @@ namespace WalletBackend.Controllers
                 return BadRequest(new { error = ex.Message });
             }
         }
-        [HttpGet("check balance")]
-        public async Task<ActionResult<string>> GetBalance(string address)
-        {
-            try
-            {
-                var web3 = new Web3(_nodeUrl);
-                var balance = await web3.Eth.GetBalance.SendRequestAsync(address);
-                var balanceEth = Web3.Convert.FromWei(balance);
-                return Ok($"Balance for address: {balanceEth} ETH");
-            }
-            catch(System.Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
+        
 
         [HttpPost("syncAllBalances")]
         public async Task<ActionResult> SyncAllBalances()

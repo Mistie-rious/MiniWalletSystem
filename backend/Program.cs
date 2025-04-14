@@ -56,8 +56,10 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddSingleton<TransactionMonitorService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<TransactionMonitorService>());
 builder.Services.AddHostedService<WalletBalanceService>();
-builder.Services.AddHostedService<TransactionMonitorService>();
+builder.Services.AddHostedService<TransactionConfirmationService>();
 var app = builder.Build();
 
 app.MapIdentityApi<ApplicationUser>();

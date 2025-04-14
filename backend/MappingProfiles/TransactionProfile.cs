@@ -18,7 +18,7 @@ public class TransactionProfile : Profile
         CreateMap<DeleteTransactionModel, Transaction>();
 
         CreateMap<UpdateTransactionModel, Transaction>();
-        CreateMap<ViewTransactionModel, Transaction>();
+        CreateMap<Transaction, ViewTransactionModel>();
 
 
 
