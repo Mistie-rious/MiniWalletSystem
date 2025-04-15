@@ -3,15 +3,24 @@ using Microsoft.AspNetCore.Mvc;
 using WalletBackend.Services.ExportService;
 
 namespace WalletBackend.Controllers;
-
+[Route("api/[controller]")]
+[ApiController]
 public class ExportController : ControllerBase
 
 
 {
     private readonly ILogger<ExportController> _logger;
     private readonly IExportService _exportService;
+    
+    public ExportController(IExportService exportService, ILogger<ExportController> logger )
+    {
+        _exportService = exportService;
+        _logger = logger;
 
-    [HttpGet("export/csv/{walletId}")]
+
+    }
+
+    [HttpGet("csv/{walletId}")]
     public async Task<IActionResult> ExportTransactionsToCsv(
         Guid walletId,
         [FromQuery] DateTime? startDate = null,
@@ -19,6 +28,7 @@ public class ExportController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("This executes");
             var csvContent = await _exportService.ExportTransactionsToCsvAsync(walletId, startDate, endDate);
             if (string.IsNullOrEmpty(csvContent))
             {
@@ -30,11 +40,11 @@ public class ExportController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(new { Message = $"Failed to export transactions: {ex.Message}" });
+            return StatusCode(500, new { Message = $"Failed to export transactions: {ex}" });
         }
     }
 
-    [HttpGet("export/pdf/{walletId}")]
+    [HttpGet("pdf/{walletId}")]
     public async Task<IActionResult> ExportTransactionsToPdf(
         Guid walletId,
         [FromQuery] DateTime? startDate = null,

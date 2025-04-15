@@ -14,7 +14,5 @@ public class ViewTransactionModel
     public TransactionStatus Status { get; set; }
     [Required]
     public TransactionType Type { get; set; }
-    [Required]
-    [MaxLength(10)]
-    public required string Currency { get; set; } = "NGN";
+
 }

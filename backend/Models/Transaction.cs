@@ -36,8 +36,8 @@ public class Transaction
     [Column(TypeName = "decimal(18,2)")]
     public decimal Amount { get; set; }
     
-    [MaxLength(10)]
-    public string Currency { get; set; } = "NGN";
+  [Required]
+  public DateTime? Timestamp { get; set; }
     
     [MaxLength(255)]
     public string? Description { get; set; }

@@ -31,7 +31,7 @@ public class TransactionMonitorService : BackgroundService
         _updateInterval = TimeSpan.FromSeconds(30);
         _nodeUrl = configuration["Ethereum:NodeUrl"];
         
-        // How many blocks to scan backwards when first starting (default to 1000 if not specified)
+
         _blocksToScan = configuration.GetValue<int>("Blockchain:BlocksToScan", 1000);
         
         _logger.LogInformation("TransactionMonitorService initialized. Will scan {BlockCount} historical blocks.", _blocksToScan);
@@ -41,7 +41,7 @@ public class TransactionMonitorService : BackgroundService
     {
         _logger.LogInformation("TransactionMonitorService started");
 
-        // Find out where to start scanning from
+       
         await InitializeBlockScanPointAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -55,12 +55,12 @@ public class TransactionMonitorService : BackgroundService
                     var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
                     var web3 = new Web3(_nodeUrl);
 
-                    // Get latest block
+                  
                     var latestBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
                     _logger.LogInformation("Current latest block: {CurrentBlock}, Last synced: {LastSynced}", 
                         latestBlock.Value, _lastSyncedBlock);
 
-                    // If we're caught up, just check new blocks
+                   
                     if (_lastSyncedBlock >= (ulong)latestBlock.Value)
                     {
                         _logger.LogInformation("Already up to date with latest block");
@@ -68,7 +68,7 @@ public class TransactionMonitorService : BackgroundService
                         continue;
                     }
 
-                    // Don't process too many blocks at once to avoid timeouts
+                 
                     var endBlock = Math.Min(_lastSyncedBlock + 50, (ulong)latestBlock.Value);
                     
                     // Get all wallet addresses
@@ -112,7 +112,7 @@ public class TransactionMonitorService : BackgroundService
                                 if (walletAddresses.Contains(tx.From.ToLower()) || 
                                    (tx.To != null && walletAddresses.Contains(tx.To.ToLower())))
                                 {
-                                    // Check if we already have this transaction
+                                   
                                     var exists = await context.Transactions
                                         .AnyAsync(t => t.TransactionHash == tx.TransactionHash, stoppingToken);
                                     
@@ -121,7 +121,7 @@ public class TransactionMonitorService : BackgroundService
                                         _logger.LogInformation("Found new transaction {Hash} in block {Block}", 
                                             tx.TransactionHash, blockNumber);
                                         
-                                        // Find the wallet this transaction belongs to
+                                       
                                         var wallet = await context.Wallets
                                             .FirstOrDefaultAsync(w => 
                                                 w.Address.ToLower() == tx.From.ToLower() || 
@@ -137,7 +137,7 @@ public class TransactionMonitorService : BackgroundService
                                                 ReceiverAddress = tx.To,
                                                 Amount = Web3.Convert.FromWei(tx.Value),
                                                 BlockNumber = tx.BlockNumber.ToString(),
-                                                Currency = "Ethereum",
+                                                
                                                 BlockchainReference = tx.BlockHash,
                                                 WalletId = wallet.Id,
                                                 Status = TransactionFunctions.DetermineTransactionStatus(tx, latestBlock),
@@ -161,13 +161,13 @@ public class TransactionMonitorService : BackgroundService
                         }
                     }
                     
-                    // Update our last synced block
+                   
                     _lastSyncedBlock = endBlock;
                     _logger.LogInformation("Scan complete. Found {Count} new transactions. Now synced to block {BlockNumber}", 
                         newTransactionsFound, _lastSyncedBlock);
                 }
                 
-                // Delay before next scan
+             
                 await Task.Delay(_updateInterval, stoppingToken);
             }
             catch (Exception ex)
@@ -186,12 +186,12 @@ public class TransactionMonitorService : BackgroundService
             var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
             var web3 = new Web3(_nodeUrl);
             
-            // Get current block number
+           
             var currentBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
             
-            // Check if we have transactions in the database already
+      
             var lastTx = await context.Transactions
-                .OrderByDescending(t => ulong.Parse(t.BlockNumber))
+                .OrderByDescending(t => t.BlockNumber)
                 .FirstOrDefaultAsync(stoppingToken);
                 
             if (lastTx != null)
