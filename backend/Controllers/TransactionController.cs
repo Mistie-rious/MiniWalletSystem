@@ -16,14 +16,17 @@ public class TransactionController: ControllerBase
     private readonly ITransactionService _transactionService;
     private readonly ILogger<TransactionController> _logger;
     private readonly IWalletService _walletService;
+    private readonly IWalletUnlockService _walletUnlockService;
+    
     private readonly string _nodeUrl;
   
 
-    public TransactionController(ITransactionService transactionService, ILogger<TransactionController> logger, IWalletService walletService , IConfiguration configuration)
+    public TransactionController(ITransactionService transactionService, ILogger<TransactionController> logger, IWalletService walletService , IConfiguration configuration, IWalletUnlockService walletUnlockService)
     {
         _transactionService = transactionService;
         _logger = logger;
         _walletService = walletService;
+        _walletUnlockService = walletUnlockService;
         _nodeUrl = configuration["Ethereum:NodeUrl"];
 
     }
@@ -134,5 +137,24 @@ public class TransactionController: ControllerBase
                 return BadRequest(new { message = ex.Message });
             }
         }
+        
+        
+    [HttpPost("unlock")]
+    public async Task<IActionResult> Unlock([FromBody] UnlockRequest req)
+    {
+        try
+        {
+            await _walletUnlockService.UnlockAsync(req.WalletId, req.Passphrase);
+            return Ok("Wallet unlocked for 30 minutes");
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Wallet not found");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return BadRequest("Invalid passphrase");
+        }
+    }
     
 }

@@ -70,4 +70,14 @@ public class WalletService : IWalletService
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
     }
+    
+    public string SignWithPrivateKey(string privateKeyHex, string transactionData)
+    {
+        // Nethereum’s MessageSigner expects hex‐encoded key (no “0x” prefix)
+        var signer = new MessageSigner();
+        string signature = signer.HashAndSign(transactionData, privateKeyHex);
+        return signature;
+    }
+    
+   
 }

@@ -12,35 +12,73 @@ namespace WalletBackend.Controllers;
 public class AuthController: ControllerBase
 {
      private readonly IAuthService _authService;
+     private readonly ILogger<AuthController> _logger;
 
 
-     public AuthController(IAuthService authService)
+     public AuthController(IAuthService authService, ILogger<AuthController> logger)
      {
           _authService = authService;
+          _logger = logger;
      }
 
      [HttpPost("register")]
-     public async Task<IActionResult>Register([FromBody] RegisterModel model)
+     public async Task<IActionResult> Register([FromBody] RegisterModel model)
      {
           if (!ModelState.IsValid)
           {
-               var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
-               return BadRequest(new ApiResponse<object> { Success = false, Errors = errors });
+               var errors = ModelState
+                    .Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+
+               return BadRequest(new ApiResponse<object>
+               {
+                    Success = false,
+                    Errors  = errors
+               });
           }
 
-          var result = await _authService.RegisterUserAsync(model);
+          // Call the updated service that returns RegisterResultDto
+          var registerResult = await _authService.RegisterUserAsync(model);
 
-          if (result.Succeeded)
+          // 1) If IdentityResult failed, return the identity errors
+          if (!registerResult.IdentityResult.Succeeded)
           {
-               return Ok(new ApiResponse<object>{Success = true, Message = "User registered successfully!"});
+               var idErrors = registerResult.IdentityResult.Errors
+                    .Select(e => e.Description)
+                    .ToList();
+
+               return BadRequest(new ApiResponse<object>
+               {
+                    Success = false,
+                    Errors  = idErrors
+               });
           }
 
-          else
+          // 2) At this point, user was created successfully, and we have a raw passphrase + address
+          string rawPassphrase = registerResult.Passphrase;
+          string onChainAddress = registerResult.Address;
+          
+          _logger.LogInformation(
+               "New user registered. Passphrase = {Passphrase}, Address = {Address}",
+               rawPassphrase,
+               onChainAddress
+          );
+
+          return Ok(new ApiResponse<object>
           {
-               var errors = result.Errors.Select(e => e.Description).ToList();
-               return BadRequest(new ApiResponse<object> { Success = false, Errors = errors });
-          }
+               Success = true,
+               Message = "User registered successfully! Please back up your wallet passphrase.",
+               Data    = new
+               {
+                    Passphrase = rawPassphrase,
+                    Address    = onChainAddress
+               }
+          });
      }
+
+
 
      
      [HttpPost("login")]

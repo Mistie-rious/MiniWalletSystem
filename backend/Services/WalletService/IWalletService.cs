@@ -7,4 +7,6 @@ public interface IWalletService
     (string EncryptedKeyStore, string Address, string Mnemonic) CreateNewWallet(string passphrase);
     string SignTransaction(string encryptedKeyStore, string passphrase, string transactionData);
     Task<List<Transaction>> GetTransactions(Guid walletId, string userId);
+
+    string SignWithPrivateKey(string privateKeyHex, string transactionData);
 }

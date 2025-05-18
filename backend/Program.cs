@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using WalletBackend.Data;
 using WalletBackend.Models;
+using WalletBackend.Models.Structures;
 using WalletBackend.Services;
 using WalletBackend.Services.AuthService;
 using WalletBackend.Services.ExportService;
@@ -16,11 +17,26 @@ using WalletBackend.Services.WalletService;
 var builder = WebApplication.CreateBuilder(args);
 
 Env.Load();
+// right after Env.Load() and builder.Configuration.AddEnvironmentVariables()
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("JwtSettings")
+);
 
 
 builder.Configuration.AddEnvironmentVariables();
 
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
+
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        policy => policy.WithOrigins("http://localhost:3000")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()); 
+});
+
 
 
 
@@ -29,11 +45,11 @@ builder.Services.AddDbContext<WalletContext>(options =>
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
-builder.Services.AddAuthentication();
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<WalletContext>()
@@ -42,35 +58,45 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, NoOpEmailSender<App
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var jwt = builder.Configuration.GetSection("JwtSettings");
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = "https://localhost:7276",
-            ValidAudience = "https://localhost:7276",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("your_super_secret_key"))
+            ValidIssuer = jwt["Issuer"],
+            ValidAudience = jwt["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwt["Key"]!))
         };
     });
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<IWalletUnlockService, WalletUnlockService>();
 builder.Services.AddScoped<IExportService, ExportService>();
-builder.Services.AddSingleton<TransactionMonitorService>();
-builder.Services.AddHostedService(provider => provider.GetRequiredService<TransactionMonitorService>());
+/*builder.Services.AddSingleton<TransactionMonitorService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<TransactionMonitorService>());*/
+builder.Services.AddSingleton<WebSocketTransactionMonitorService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<WebSocketTransactionMonitorService>());
 builder.Services.AddHostedService<WalletBalanceService>();
 builder.Services.AddHostedService<TransactionConfirmationService>();
 var app = builder.Build();
 
 app.MapIdentityApi<ApplicationUser>();
-
-app.UseHttpsRedirection();
 app.UseRouting();
+app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers(); 
+app.MapControllers();
+
+app.UseHttpsRedirection();
+
+
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

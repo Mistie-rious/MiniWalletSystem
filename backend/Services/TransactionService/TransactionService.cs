@@ -27,14 +27,16 @@ namespace WalletBackend.Services.TransactionService;
         private readonly IMapper _mapper;
         private readonly ILogger<TransactionService> _logger;
         private readonly IWalletService _walletService;
+        private readonly IWalletUnlockService _walletUnlockService;
 
-        public TransactionService(IConfiguration configuration, ILogger<TransactionService> logger, IMapper mapper, WalletContext context, IWalletService walletService)
+        public TransactionService(IConfiguration configuration, ILogger<TransactionService> logger, IMapper mapper, WalletContext context, IWalletService walletService, IWalletUnlockService walletUnlockService)
         {
             _context = context;
             _mapper = mapper;
             _walletService = walletService;
             _logger = logger;
             _nodeUrl = configuration["Ethereum:NodeUrl"];
+            _walletUnlockService = walletUnlockService;  
         }
 
         public async Task<CreateTransactionModel> CreateTransactionAsync(CreateTransactionModel model)
@@ -55,10 +57,12 @@ namespace WalletBackend.Services.TransactionService;
                     throw new Exception("Wallet not found");
                 }
 
-                var encryptedKeyStore = wallet.EncryptedKeyStore;
-                if (string.IsNullOrEmpty(encryptedKeyStore))
+                if (!_walletUnlockService.TryGetPrivateKey(request.WalletId, out var privateKey))
                 {
-                    throw new Exception("Encrypted keystore is missing in this wallet");
+                    return new TransactionResult {
+                        Success = false,
+                        Message = "Wallet is locked. Please unlock your wallet first."
+                    };
                 }
 
                 var transactionData = new
@@ -69,8 +73,9 @@ namespace WalletBackend.Services.TransactionService;
                     Timestamp = DateTime.UtcNow,
                     Nonce = Guid.NewGuid().ToString()
                 };
-                string serializedData = JsonSerializer.Serialize(transactionData);
-                string signature = _walletService.SignTransaction(encryptedKeyStore, request.Passphrase, serializedData);
+                string serialized = JsonSerializer.Serialize(transactionData);
+                var signature = _walletService.SignWithPrivateKey(privateKey, serialized);
+
 
                 var transaction = new Transaction
                 {
@@ -82,13 +87,16 @@ namespace WalletBackend.Services.TransactionService;
                     CreatedAt = DateTime.UtcNow,
                     Amount = request.Amount,
                     WalletId = request.WalletId,
-                    Description = request.Description
+                    Description = request.Description,
+                    Timestamp = DateTime.UtcNow,      
                 };
 
                 _context.Transactions.Add(transaction);
                 await _context.SaveChangesAsync();
 
-                var blockchainResponse = await SubmitToBlockchainNetworkAsync(request);
+                var blockchainResponse = await SubmitToBlockchainNetworkAsync(
+                    privateKey,   // <–– the only “secret” you need now
+                    request);
 
                 if (blockchainResponse.Mined)
                 {
@@ -140,41 +148,46 @@ namespace WalletBackend.Services.TransactionService;
             }
         }
 
-        private async Task<BlockchainResponse> SubmitToBlockchainNetworkAsync(TransactionRequest request)
+        private async Task<BlockchainResponse> SubmitToBlockchainNetworkAsync(
+            string privateKeyHex,
+            TransactionRequest request)
         {
             try
             {
-                var wallet = await _context.Set<Wallet>().FirstOrDefaultAsync(w => w.Id == request.WalletId);
-                if (wallet == null)
-                {
-                    throw new Exception("Wallet not found");
-                }
+                // 1) Create an Account directly from the hex‐encoded private key
+                //    (11155111 is the Sepolia chain ID; change if you’re on a different network)
+                var account = new Nethereum.Web3.Accounts.Account(privateKeyHex, chainId: 11155111);
 
-                var encryptedKeyStore = wallet.EncryptedKeyStore;
-                var account = Nethereum.Web3.Accounts.Account.LoadFromKeyStore(encryptedKeyStore, request.Passphrase, 11155111);
-                var web3 = new Web3(account, _nodeUrl);
+                // 2) Initialize Web3 using that account
+                var web3 = new Nethereum.Web3.Web3(account, _nodeUrl);
 
-                var transactionReceipt = await web3.Eth.GetEtherTransferService()
-                    .TransferEtherAndWaitForReceiptAsync(request.ReceiverAddress, request.Amount);
+                // 3) Send the Ether transfer & wait for the receipt
+                var transactionReceipt = await web3
+                    .Eth
+                    .GetEtherTransferService()
+                    .TransferEtherAndWaitForReceiptAsync(
+                        request.ReceiverAddress,
+                        request.Amount);
 
                 return new BlockchainResponse
                 {
-                    Mined = true,
-                    TransactionHash = transactionReceipt.TransactionHash,
-                    BlockNumber = transactionReceipt.BlockNumber.ToString(),
-                    GasUsed = transactionReceipt.GasUsed.ToString(),
-                    TransactionStatus = transactionReceipt.Status.Value == 1
+                    Mined              = true,
+                    TransactionHash    = transactionReceipt.TransactionHash,
+                    BlockNumber        = transactionReceipt.BlockNumber.ToString(),
+                    GasUsed            = transactionReceipt.GasUsed.ToString(),
+                    TransactionStatus  = transactionReceipt.Status.Value == 1
                 };
             }
             catch (Exception ex)
             {
                 return new BlockchainResponse
                 {
-                    Mined = false,
+                    Mined        = false,
                     ErrorMessage = ex.Message
                 };
             }
         }
+
 
         public async Task UpdateTransactionConfirmationsAsync()
         {

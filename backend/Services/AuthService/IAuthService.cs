@@ -5,7 +5,7 @@ namespace WalletBackend.Services.AuthService;
 
 public interface IAuthService 
 {
-    Task<IdentityResult> RegisterUserAsync(RegisterModel model);
+    Task<RegisterResultDto> RegisterUserAsync(RegisterModel model);
 
     
     Task<AuthResult> LoginAsync(LoginModel model);
