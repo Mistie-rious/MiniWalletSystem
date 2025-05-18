@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using WalletBackend.Models;
+using WalletBackend.Models.Enums;
 
 namespace WalletBackend.Data;
 
@@ -16,6 +17,10 @@ public class WalletContext: IdentityDbContext<ApplicationUser>
     public DbSet<ApplicationUser> Users { get; set; }
     public DbSet<Wallet> Wallets { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
+    
+    public DbSet<WalletBalance> WalletBalances { get; set; }
+    public DbSet<CurrencyConfig> CurrencyConfigs { get; set; }
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +43,24 @@ public class WalletContext: IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<ApplicationUser>()
             .Property(t => t.Role)
             .HasConversion<string>();
+        
+        modelBuilder.Entity<CurrencyConfig>().HasData(
+            new CurrencyConfig {
+                Id              = Guid.Parse("a1111111-2222-3333-4444-555555555555"),
+                Currency        = CurrencyType.ETH,
+                Name            = "Ethereum",
+                Symbol          = "ETH",
+                Decimals        = 18,
+                Network         = "Sepolia",
+                NodeUrl         = "https://eth-sepolia.g.alchemy.com/v2/OPEVNKgEfgyM3w8EfPeRVzmnglTuYeEA",
+                WebSocketUrl = "wss://eth-sepolia.g.alchemy.com/v2/OPEVNKgEfgyM3w8EfPeRVzmnglTuYeEA",
+                ChainId = 11155111,
+
+                IsActive        = true,
+                CreatedAt       = new DateTime(2025, 5, 1, 0, 0, 0) 
+            }
+            // …add other currencies here…
+        );
             
         
         base.OnModelCreating(modelBuilder);

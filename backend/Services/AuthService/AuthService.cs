@@ -10,6 +10,7 @@ using NBitcoin;
 using WalletBackend.Data;
 using WalletBackend.Models;
 using WalletBackend.Models.DTOS;
+using WalletBackend.Models.Enums;
 using WalletBackend.Services.TokenService;
 using WalletBackend.Services.WalletService;
 
@@ -35,124 +36,117 @@ public class AuthService : IAuthService
         _mapper = mapper;
         _logger = logger;
     }
-
-    public async Task<RegisterResultDto> RegisterUserAsync(RegisterModel model)
-{
-    var resultDto = new RegisterResultDto
-    {
-        IdentityResult = IdentityResult.Success,
-        Passphrase = null,
-        Address = null
-    };
-
-    // Start a database transaction to ensure consistency
-    using var transaction = await _context.Database.BeginTransactionAsync();
-    
-    try
-    {
-        // --- 1) Check if email already exists ---
-        var existing = await _userManager.FindByEmailAsync(model.Email);
-        if (existing != null)
+ 
+      public async Task<RegisterResultDto> RegisterUserAsync(RegisterModel model)
         {
-            resultDto.IdentityResult = IdentityResult.Failed(
-                new IdentityError { Description = "Email is already in use." }
-            );
-            await transaction.RollbackAsync();
-            return resultDto;
-        }
+            var resultDto = new RegisterResultDto
+            {
+                IdentityResult = IdentityResult.Success,
+                Mnemonic       = null,
+                Address        = null
+            };
 
-        // --- 2) Create the ApplicationUser (with ASP.NET Identity) ---
-        var user = _mapper.Map<ApplicationUser>(model);
-        var identity = await _userManager.CreateAsync(user, model.Password);
-        resultDto.IdentityResult = identity;
-
-        // If Identity failed (e.g. password too weak), return immediately
-        if (!identity.Succeeded)
-        {
-            await transaction.RollbackAsync();
-            return resultDto;
-        }
-
-        // --- 3) Identity succeeded: generate a random passphrase ---
-        string passphrase = GenerateRandomPassphrase();
-
-        // --- 4) Create the on-chain wallet using that passphrase ---
-        var (encryptedKeyStore, address, mnemonic) = _walletService.CreateNewWallet(passphrase);
-
-        // --- 5) Persist the new Wallet record, linked to user.Id ---
-        var wallet = new Wallet
-        {
-            UserId = user.Id,
-            Address = address,
-            EncryptedKeyStore = encryptedKeyStore,
-            Balance = 0m,
-            CreatedAt = DateTime.UtcNow,
-        };
-
-        _context.Wallets.Add(wallet);
-        await _context.SaveChangesAsync();
-
-        // --- 6) Link back to ApplicationUser (if you keep a navigation property) ---
-        user.Wallet = wallet;
-        await _userManager.UpdateAsync(user);
-
-        // Commit the transaction
-        await transaction.CommitAsync();
-
-        // --- 7) Populate the DTO so the controller can return the passphrase+address ---
-        resultDto.Passphrase = passphrase;
-        resultDto.Address = address;
-
-        // Log successful registration (without sensitive data)
-        _logger.LogInformation("User {UserId} successfully registered with wallet address {Address}", 
-            user.Id, address);
-
-        return resultDto;
-    }
-    catch (Exception ex)
-    {
-        // Check if transaction is still active before attempting rollback
-        if (transaction.GetDbTransaction().Connection != null)
-        {
+            // 1) Start a DB transaction
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                await transaction.RollbackAsync();
-            }
-            catch (Exception rollbackEx)
-            {
-                _logger.LogError(rollbackEx, "Failed to rollback transaction during error handling");
-            }
-        }
-
-        // Log the error
-        _logger.LogError(ex, "Error occurred during user registration for email {Email}", model.Email);
-
-        // Clean up the Identity user if it was created
-        if (resultDto.IdentityResult.Succeeded)
-        {
-            try
-            {
-                var userToDelete = await _userManager.FindByEmailAsync(model.Email);
-                if (userToDelete != null)
+                // 2) Check for existing email
+                var existing = await _userManager.FindByEmailAsync(model.Email);
+                if (existing != null)
                 {
-                    await _userManager.DeleteAsync(userToDelete);
-                    _logger.LogInformation("Cleaned up Identity user {UserId} after wallet creation failure", userToDelete.Id);
+                    resultDto.IdentityResult = IdentityResult.Failed(
+                        new IdentityError { Description = "Email is already in use." }
+                    );
+                    await transaction.RollbackAsync();
+                    return resultDto;
                 }
+
+                // 3) Create Identity user
+                var user   = _mapper.Map<ApplicationUser>(model);
+                var identity = await _userManager.CreateAsync(user, model.Password);
+                resultDto.IdentityResult = identity;
+
+                if (!identity.Succeeded)
+                {
+                    await transaction.RollbackAsync();
+                    return resultDto;
+                }
+
+                // 4) Use the user's login password to encrypt the keystore
+                var (encryptedKeyStore, address, mnemonic) 
+                    = _walletService.CreateNewWallet(model.Password);
+
+                // 5) Persist the on‑chain wallet record
+                var wallet = new Wallet
+                {
+                    UserId           = user.Id,
+                    Address          = address,
+                    EncryptedKeyStore= encryptedKeyStore,
+                    Balance          = 0m,
+                    CreatedAt        = DateTime.UtcNow
+                };
+                _context.Wallets.Add(wallet);
+                await _context.SaveChangesAsync();
+                
+                var walletBalance = new WalletBalance
+                {
+                    WalletId = wallet.Id,
+                    Balance  = 0m, // initial balance
+                    Currency = CurrencyType.ETH, // or whatever default currency you want to set
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.WalletBalances.Add(walletBalance);
+                await _context.SaveChangesAsync();
+
+                // 6) Link wallet to user (if you have navigation property)
+                user.Wallet = wallet;
+                await _userManager.UpdateAsync(user);
+
+                // 7) Commit transaction
+                await transaction.CommitAsync();
+
+                // 8) Return mnemonic + address to caller
+                resultDto.Mnemonic = mnemonic;
+                resultDto.Address  = address;
+
+                _logger.LogInformation(
+                    "User {UserId} registered; wallet {Address} created",
+                    user.Id, address
+                );
+
+                return resultDto;
             }
-            catch (Exception cleanupEx)
+            catch (Exception ex)
             {
-                _logger.LogError(cleanupEx, "Failed to clean up Identity user after wallet creation failure");
+                // Roll back if possible
+                if (_context.Database.CurrentTransaction != null)
+                {
+                    await _context.Database.CurrentTransaction.RollbackAsync();
+                }
+
+                _logger.LogError(ex, "Registration failed for {Email}", model.Email);
+
+                // If Identity user was created, delete it
+                if (resultDto.IdentityResult.Succeeded)
+                {
+                    var createdUser = await _userManager.FindByEmailAsync(model.Email);
+                    if (createdUser != null)
+                    {
+                        await _userManager.DeleteAsync(createdUser);
+                        _logger.LogInformation(
+                            "Rolled back Identity user {UserId} after wallet error",
+                            createdUser.Id
+                        );
+                    }
+                }
+
+                resultDto.IdentityResult = IdentityResult.Failed(
+                    new IdentityError { Description = "An error occurred during registration." }
+                );
+                return resultDto;
             }
         }
-
-        // Return a failure result
-        resultDto.IdentityResult = IdentityResult.Failed(
-            new IdentityError { Description = "An error occurred during registration. Please try again." }
-        );
-        
-        return resultDto;
-    }
-}
+    
 
     public async Task<AuthResult> LoginAsync(LoginModel model)
     {
@@ -186,11 +180,18 @@ public class AuthService : IAuthService
         };
     }
     
-    private static string GenerateRandomPassphrase()
+    private static string GenerateRandomPassphrase(int length = 32)
     {
-        // This creates a new 24‑word English BIP‑39 mnemonic.
-        var mnemonic = new Mnemonic(Wordlist.English, WordCount.TwentyFour);
-        return mnemonic.ToString(); 
-        // e.g. "abandon ability able about above absent absorb abstract absurd abuse access accident activity actor adapt adjust adult advance aunt agree ahead alarm"
+        const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}<>?";
+        var random = new Random();
+        var password = new char[length];
+
+        for (int i = 0; i < length; i++)
+        {
+            password[i] = chars[random.Next(chars.Length)];
+        }
+
+        return new string(password);
     }
+
 }

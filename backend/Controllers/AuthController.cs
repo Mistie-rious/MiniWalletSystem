@@ -56,24 +56,24 @@ public class AuthController: ControllerBase
                });
           }
 
-          // 2) At this point, user was created successfully, and we have a raw passphrase + address
-          string rawPassphrase = registerResult.Passphrase;
+          // 2) At this point, user was created successfully, and we have a raw mnemonic + address
+          string rawMnemonic    = registerResult.Mnemonic;
           string onChainAddress = registerResult.Address;
-          
+    
           _logger.LogInformation(
-               "New user registered. Passphrase = {Passphrase}, Address = {Address}",
-               rawPassphrase,
+               "New user registered. Mnemonic = {Mnemonic}, Address = {Address}",
+               rawMnemonic,
                onChainAddress
           );
 
           return Ok(new ApiResponse<object>
           {
                Success = true,
-               Message = "User registered successfully! Please back up your wallet passphrase.",
+               Message = "User registered successfully! Please back up your wallet recovery mnemonic.",
                Data    = new
                {
-                    Passphrase = rawPassphrase,
-                    Address    = onChainAddress
+                    Mnemonic = rawMnemonic,
+                    Address  = onChainAddress
                }
           });
      }

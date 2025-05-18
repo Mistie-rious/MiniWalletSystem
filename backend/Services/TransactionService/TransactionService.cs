@@ -47,108 +47,73 @@ namespace WalletBackend.Services.TransactionService;
             return _mapper.Map<CreateTransactionModel>(transaction);
         }
 
-        public async Task<TransactionResult> SendMoneyAsync(TransactionRequest request)
+        public async Task<TransactionResult> SendEthereumAsync(CurrencyTransactionRequest request)
         {
-            try
+            // Use your existing SendMoneyAsync logic here
+            // Just adapt it to work with the new structure
+
+            if (!_walletUnlockService.TryGetPrivateKey(request.WalletId, out var privateKey))
             {
-                var wallet = await _context.Set<Wallet>().FirstOrDefaultAsync(w => w.Id == request.WalletId);
-                if (wallet == null)
+                return new TransactionResult
                 {
-                    throw new Exception("Wallet not found");
-                }
-
-                if (!_walletUnlockService.TryGetPrivateKey(request.WalletId, out var privateKey))
-                {
-                    return new TransactionResult {
-                        Success = false,
-                        Message = "Wallet is locked. Please unlock your wallet first."
-                    };
-                }
-
-                var transactionData = new
-                {
-                    From = request.SenderAddress,
-                    To = request.ReceiverAddress,
-                    Amount = request.Amount,
-                    Timestamp = DateTime.UtcNow,
-                    Nonce = Guid.NewGuid().ToString()
+                    Success = false,
+                    Message = "Wallet is locked. Please unlock your wallet first."
                 };
-                string serialized = JsonSerializer.Serialize(transactionData);
-                var signature = _walletService.SignWithPrivateKey(privateKey, serialized);
-
-
-                var transaction = new Transaction
-                {
-                    TransactionHash = signature,
-                    SenderAddress = request.SenderAddress,
-                    ReceiverAddress = request.ReceiverAddress,
-                    Status = TransactionStatus.Pending,
-                    Type = TransactionType.Debit,
-                    CreatedAt = DateTime.UtcNow,
-                    Amount = request.Amount,
-                    WalletId = request.WalletId,
-                    Description = request.Description,
-                    Timestamp = DateTime.UtcNow,      
-                };
-
-                _context.Transactions.Add(transaction);
-                await _context.SaveChangesAsync();
-
-                var blockchainResponse = await SubmitToBlockchainNetworkAsync(
-                    privateKey,   // <–– the only “secret” you need now
-                    request);
-
-                if (blockchainResponse.Mined)
-                {
-                    if (blockchainResponse.TransactionStatus == true)
-                    {
-                        transaction.Status = TransactionStatus.Pending;
-                        transaction.BlockchainReference = blockchainResponse.TransactionHash;
-                        transaction.BlockNumber = blockchainResponse.BlockNumber;
-                    }
-                    else
-                    {
-                        transaction.Status = TransactionStatus.Failed;
-                        transaction.Description += " | Transaction failed on the blockchain";
-                    }
-                }
-                else
-                {
-                    transaction.Status = TransactionStatus.Failed;
-                    transaction.Description += $" | Submission failed: {blockchainResponse.ErrorMessage}";
-                }
-
-                transaction.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-
-                if (blockchainResponse.Mined && blockchainResponse.TransactionStatus == true)
-                {
-                    return new TransactionResult
-                    {
-                        Success = true,
-                        TransactionId = transaction.Id,
-                        BlockchainReference = blockchainResponse.TransactionHash,
-                        Message = "Transaction is pending confirmation"
-                    };
-                }
-                else
-                {
-                    return new TransactionResult
-                    {
-                        Success = false,
-                        TransactionId = transaction.Id,
-                        Message = transaction.Description
-                    };
-                }
             }
-            catch (Exception ex)
+
+            // Create transaction with currency info
+            var blockchainResponse = await SubmitToEthereumNetworkAsync(privateKey, request);
+
+// 3) build the transaction only once
+            var tx = new Transaction
             {
-                _logger.LogError(ex, $"Error processing transaction: {ex.Message}");
-                throw;
+                Id = Guid.NewGuid(),
+                WalletId = request.WalletId,
+                Amount = request.Amount,
+                Currency = CurrencyType.ETH,
+                Type = TransactionType.Debit,
+                Description = request.Description,
+              
+                SenderAddress = request.SenderAddress,
+                ReceiverAddress = request.ReceiverAddress,
+                Status = blockchainResponse.Mined && blockchainResponse.TransactionStatus
+                    ? TransactionStatus.Pending
+                    : TransactionStatus.Failed,
+                TransactionHash = blockchainResponse.TransactionHash,
+                BlockchainReference = blockchainResponse.TransactionHash,
+                BlockNumber = blockchainResponse.BlockNumber,
+                CreatedAt = DateTime.UtcNow,
+                Timestamp = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            _context.Transactions.Add(tx);
+            await _context.SaveChangesAsync();
+
+            if (tx.Status == TransactionStatus.Pending)
+            {
+                await UpdateCurrencyBalance(request.WalletId, CurrencyType.ETH, -request.Amount);
+                return new TransactionResult
+                {
+                    Success = true,
+                    TransactionId = tx.Id,
+                    BlockchainReference = tx.TransactionHash,
+                    Message = "Transaction is pending confirmation"
+                };
+            }
+            else
+            {
+                return new TransactionResult
+                {
+                    Success = false,
+                    TransactionId = tx.Id,
+                    Message = blockchainResponse.ErrorMessage ?? "Transaction failed"
+                };
             }
         }
 
-        private async Task<BlockchainResponse> SubmitToBlockchainNetworkAsync(
+
+        private async Task<BlockchainResponse> SubmitToEthereumNetworkAsync(
             string privateKeyHex,
             TransactionRequest request)
         {
@@ -187,6 +152,8 @@ namespace WalletBackend.Services.TransactionService;
                 };
             }
         }
+        
+        
 
 
         public async Task UpdateTransactionConfirmationsAsync()
@@ -308,6 +275,107 @@ namespace WalletBackend.Services.TransactionService;
             throw;
         }
     }
+        
+        
+        public async Task<TransactionResult> SendCurrencyAsync(CurrencyTransactionRequest request)
+        {
+            try
+            {
+                var wallet = await _context.Set<Wallet>().FirstOrDefaultAsync(w => w.Id == request.WalletId);
+                if (wallet == null)
+                {
+                    throw new Exception("Wallet not found");
+                }
+
+                // Get currency configuration
+                var currencyConfig = await _context.CurrencyConfigs
+                    .FirstOrDefaultAsync(c => c.Currency == request.Currency && c.IsActive);
+            
+                if (currencyConfig == null)
+                {
+                    return new TransactionResult 
+                    {
+                        Success = false,
+                        Message = $"Currency {request.Currency} is not supported"
+                    };
+                }
+
+                // Check currency balance
+                var currencyBalance = await GetCurrencyBalance(request.WalletId, request.Currency);
+                _logger.LogInformation($"Currency Balance: {currencyBalance}");
+
+                if (currencyBalance < request.Amount)
+                {
+                    return new TransactionResult 
+                    {
+                        Success = false,
+                        Message = "Insufficient balance"
+                    };
+                }
+
+                // Route to appropriate blockchain service based on currency
+                return request.Currency switch
+                {
+                    CurrencyType.ETH => await SendEthereumAsync(request),
+                    CurrencyType.BTC => await SendBitcoinAsync(request, currencyConfig),
+                    CurrencyType.USDT => await SendERC20TokenAsync(request, currencyConfig),
+                    CurrencyType.USDC => await SendERC20TokenAsync(request, currencyConfig),
+                    _ => throw new NotSupportedException($"Currency {request.Currency} not yet implemented")
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error processing {request.Currency} transaction: {ex.Message}");
+                throw;
+            }
+        }
+        
+        private async Task<TransactionResult> SendBitcoinAsync(CurrencyTransactionRequest request, CurrencyConfig config)
+        {
+            // Implement Bitcoin transaction logic here
+            // You would need to integrate with a Bitcoin library like NBitcoin
+            throw new NotImplementedException("Bitcoin transactions not yet implemented");
+        }
+
+        // Placeholder for ERC-20 token transactions
+        private async Task<TransactionResult> SendERC20TokenAsync(CurrencyTransactionRequest request, CurrencyConfig config)
+        {
+            // Implement ERC-20 token transfer logic here
+            // Use Nethereum's ERC-20 functions
+            throw new NotImplementedException("ERC-20 token transactions not yet implemented");
+        }
+        
+        public async Task<decimal> GetCurrencyBalance(Guid walletId, CurrencyType currency)
+        {
+            var walletBalance = await _context.WalletBalances
+                .FirstOrDefaultAsync(wb => wb.WalletId == walletId && wb.Currency == currency);
+        
+            return walletBalance?.Balance ?? 0;
+        }
+
+        private async Task UpdateCurrencyBalance(Guid walletId, CurrencyType currency, decimal amount)
+        {
+            var walletBalance = await _context.WalletBalances
+                .FirstOrDefaultAsync(wb => wb.WalletId == walletId && wb.Currency == currency);
+
+            if (walletBalance == null)
+            {
+                walletBalance = new WalletBalance
+                {
+                    WalletId = walletId,
+                    Currency = currency,
+                    Balance = 0,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.WalletBalances.Add(walletBalance);
+            }
+
+            walletBalance.Balance += amount;
+            walletBalance.UpdatedAt = DateTime.UtcNow;
+        }
+        
+        
+        
         
         
         

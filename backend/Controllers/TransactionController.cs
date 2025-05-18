@@ -55,7 +55,7 @@ public class TransactionController: ControllerBase
         try
         {
             if (string.IsNullOrEmpty(request.EncryptedKeyStore) || 
-                string.IsNullOrEmpty(request.Passphrase) || 
+                string.IsNullOrEmpty(request.password) || 
                 string.IsNullOrEmpty(request.TransactionData))
             {
                 return BadRequest("Missing required parameters");
@@ -63,7 +63,7 @@ public class TransactionController: ControllerBase
 
             string signature = _walletService.SignTransaction(
                 request.EncryptedKeyStore,
-                request.Passphrase,
+                request.password,
                 request.TransactionData);
 
             return Ok(new { Signature = signature });
@@ -75,28 +75,20 @@ public class TransactionController: ControllerBase
         }
     }
 
+    
     [HttpPost("send")]
-    public async Task<ActionResult<TransactionResult>> SendMoney([FromBody] TransactionRequest request)
+    public async Task<IActionResult> Send([FromBody] CurrencyTransactionRequest request)
     {
-        try
-        {
-            if (
-                string.IsNullOrEmpty(request.SenderAddress) || 
-                string.IsNullOrEmpty(request.ReceiverAddress) ||
-                request.Amount <= 0)
-            {
-                return BadRequest("Invalid transaction parameters");
-            }
-
-            var result = await _transactionService.SendMoneyAsync(request);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing transaction");
-            return StatusCode(500, "An error occurred while processing the transaction");
-        }
+        var result = await _transactionService.SendEthereumAsync(request);
+        if (!result.Success) 
+            return BadRequest(result.Message);
+        return Ok(new {
+            result.TransactionId,
+            result.BlockchainReference,
+            result.Message
+        });
     }
+
     
     [HttpGet("search")]
     public async Task<IActionResult> SearchTransactions(
@@ -144,7 +136,7 @@ public class TransactionController: ControllerBase
     {
         try
         {
-            await _walletUnlockService.UnlockAsync(req.WalletId, req.Passphrase);
+            await _walletUnlockService.UnlockAsync(req.WalletId, req.Password);
             return Ok("Wallet unlocked for 30 minutes");
         }
         catch (KeyNotFoundException)
@@ -153,7 +145,7 @@ public class TransactionController: ControllerBase
         }
         catch (UnauthorizedAccessException)
         {
-            return BadRequest("Invalid passphrase");
+            return BadRequest("Invalid password");
         }
     }
     

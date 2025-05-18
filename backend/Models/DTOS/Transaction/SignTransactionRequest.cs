@@ -8,7 +8,7 @@ public class SignTransactionRequest
     public string EncryptedKeyStore { get; set; }
     
     [Required]
-    public string Passphrase { get; set; }
+    public string password { get; set; }
     
     [Required]
     public string TransactionData { get; set; }

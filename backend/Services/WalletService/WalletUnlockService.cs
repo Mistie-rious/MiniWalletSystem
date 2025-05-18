@@ -9,18 +9,20 @@ public class WalletUnlockService : IWalletUnlockService
     private readonly WalletContext _context;
     private readonly IMemoryCache _cache;
     private readonly IWalletService _walletService;
+    private readonly ILogger<WalletUnlockService> _logger;
 
     public WalletUnlockService(
     WalletContext context,
     IMemoryCache cache,
-        IWalletService   walletService)
+        IWalletService   walletService,   ILogger<WalletUnlockService> logger)
     {
         _context = context;
         _cache         = cache;
         _walletService = walletService;
+        _logger = logger;
     }
 
-    public async Task UnlockAsync(Guid walletId, string passphrase)
+    public async Task UnlockAsync(Guid walletId, string password)
     {
         // 1) Load wallet
         var wallet = await _context.Wallets.FindAsync(walletId);
@@ -28,16 +30,16 @@ public class WalletUnlockService : IWalletUnlockService
             throw new KeyNotFoundException("Wallet not found");
 
         // 2) Decrypt keystore
-
+        _logger.LogInformation("Unlocking wallet {password}", password);
         byte[] pkBytes;
         try
         {
             var keyStoreService = new KeyStoreService();
-            pkBytes = keyStoreService.DecryptKeyStoreFromJson(passphrase, wallet.EncryptedKeyStore);
+            pkBytes = keyStoreService.DecryptKeyStoreFromJson(password, wallet.EncryptedKeyStore);
         }
         catch
         {
-            throw new UnauthorizedAccessException("Invalid passphrase");
+            throw new UnauthorizedAccessException("Invalid password");
         }
 
         // 3) Cache for 30 minutes

@@ -11,7 +11,7 @@ public interface ITransactionService
     Task<UpdateTransactionModel> UpdateTransactionAsync(UpdateTransactionModel model);
     Task<DeleteTransactionModel> DeleteTransactionAsync(int transactionId);
     Task<ViewTransactionModel?> ViewTransactionAsync(int transactionId);
-    Task<TransactionResult> SendMoneyAsync(TransactionRequest request);
+    
     Task UpdateTransactionConfirmationsAsync();
 
     Task<IEnumerable<ViewTransactionModel>> SearchTransactionsAsync(
@@ -23,5 +23,8 @@ public interface ITransactionService
         string? transactionHash = null,
         TransactionStatus? status = null);
 
-   
+
+    Task<TransactionResult> SendCurrencyAsync(CurrencyTransactionRequest request);
+    Task<decimal> GetCurrencyBalance(Guid walletId, CurrencyType currency);
+    Task<TransactionResult> SendEthereumAsync(CurrencyTransactionRequest request);
 }

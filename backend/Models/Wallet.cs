@@ -23,5 +23,6 @@ public class Wallet
    public string EncryptedKeyStore { get; set; }
    
    public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+   public ICollection<WalletBalance> CurrencyBalances { get; set; } = new List<WalletBalance>();
 
 }

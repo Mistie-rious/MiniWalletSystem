@@ -22,7 +22,7 @@ public class WalletService : IWalletService
         _context = context;
     }
 
-    public (string EncryptedKeyStore, string Address, string Mnemonic) CreateNewWallet(string passphrase)
+    public (string EncryptedKeyStore, string Address, string Mnemonic) CreateNewWallet(string password)
     {
         var mnemonic = new Mnemonic(Wordlist.English, WordCount.TwentyFour);
         string mnemonicPhrase = mnemonic.ToString();
@@ -34,17 +34,17 @@ public class WalletService : IWalletService
 
         var keyStoreService = new KeyStoreService();
         string encryptedKeyStore = keyStoreService.EncryptAndGenerateDefaultKeyStoreAsJson(
-            passphrase, 
+            password, 
             privateKey.HexToByteArray(), 
             address);
     
         return (encryptedKeyStore, address, mnemonicPhrase);
     }
 
-    public string SignTransaction(string encryptedKeyStore, string passphrase, string transactionData)
+    public string SignTransaction(string encryptedKeyStore, string password, string transactionData)
     {
         var keyStoreService = new KeyStoreService();
-        byte[] privateKeyBytes = keyStoreService.DecryptKeyStoreFromJson(passphrase, encryptedKeyStore);
+        byte[] privateKeyBytes = keyStoreService.DecryptKeyStoreFromJson(password, encryptedKeyStore);
 
         var privateKey = privateKeyBytes.ToHex();
         var signer = new MessageSigner();
@@ -70,14 +70,4 @@ public class WalletService : IWalletService
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
     }
-    
-    public string SignWithPrivateKey(string privateKeyHex, string transactionData)
-    {
-        // Nethereum’s MessageSigner expects hex‐encoded key (no “0x” prefix)
-        var signer = new MessageSigner();
-        string signature = signer.HashAndSign(transactionData, privateKeyHex);
-        return signature;
-    }
-    
-   
 }

@@ -28,7 +28,7 @@ public class TransactionMonitorService : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _updateInterval = TimeSpan.FromSeconds(30);
+        _updateInterval = TimeSpan.FromSeconds(10);
         _nodeUrl = configuration["Ethereum:NodeUrl"];
         
 
