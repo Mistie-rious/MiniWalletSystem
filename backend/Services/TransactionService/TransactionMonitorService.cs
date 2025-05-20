@@ -12,6 +12,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using System.Collections.Generic;
+using Nethereum.Hex.HexTypes;
+using WalletBackend.Models.Enums;
 
 namespace WalletBackend.Services.TransactionService;
 
@@ -23,57 +26,60 @@ public class TransactionMonitorService : BackgroundService
     private readonly ILogger<TransactionMonitorService> _logger;
     private ulong _lastSyncedBlock = 0;
     private readonly int _blocksToScan;
+    private readonly int _maxBlocksPerBatch;
 
     public TransactionMonitorService(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<TransactionMonitorService> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _updateInterval = TimeSpan.FromSeconds(10);
-        _nodeUrl = configuration["Ethereum:NodeUrl"];
+        _updateInterval = TimeSpan.FromSeconds(configuration.GetValue<int>("Blockchain:ScanIntervalSeconds", 10));
+        _nodeUrl = configuration["Ethereum:NodeUrl"] ?? throw new InvalidOperationException("Ethereum:NodeUrl configuration is required");
         
-
         _blocksToScan = configuration.GetValue<int>("Blockchain:BlocksToScan", 1000);
+        _maxBlocksPerBatch = configuration.GetValue<int>("Blockchain:MaxBlocksPerBatch", 50);
         
-        _logger.LogInformation("TransactionMonitorService initialized. Will scan {BlockCount} historical blocks.", _blocksToScan);
+        _logger.LogInformation("TransactionMonitorService initialized. Will scan {BlockCount} historical blocks with {MaxBatch} blocks per batch.", 
+            _blocksToScan, _maxBlocksPerBatch);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("TransactionMonitorService started");
 
-       
+        // Initialize the starting block point
         await InitializeBlockScanPointAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                _logger.LogInformation("Beginning transaction scan cycle");
+                _logger.LogDebug("Beginning transaction scan cycle");
                 
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
                     var web3 = new Web3(_nodeUrl);
 
-                  
+                    // Get current latest block
                     var latestBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
-                    _logger.LogInformation("Current latest block: {CurrentBlock}, Last synced: {LastSynced}", 
+                    _logger.LogDebug("Current latest block: {CurrentBlock}, Last synced: {LastSynced}", 
                         latestBlock.Value, _lastSyncedBlock);
 
-                   
+                    // Check if we're already up to date
                     if (_lastSyncedBlock >= (ulong)latestBlock.Value)
                     {
-                        _logger.LogInformation("Already up to date with latest block");
+                        _logger.LogDebug("Already up to date with latest block");
                         await Task.Delay(_updateInterval, stoppingToken);
                         continue;
                     }
 
-                 
-                    var endBlock = Math.Min(_lastSyncedBlock + 50, (ulong)latestBlock.Value);
+                    // Calculate end block (don't process too many blocks at once)
+                    var endBlock = Math.Min(_lastSyncedBlock + (ulong)_maxBlocksPerBatch, (ulong)latestBlock.Value);
                     
                     // Get all wallet addresses
                     var walletAddresses = await context.Wallets
-                        .Select(w => w.Address.ToLower())
+                        .Where(w => !string.IsNullOrEmpty(w.Address))
+                        .Select(w => new { Id = w.Id, Address = w.Address.ToLower() })
                         .ToListAsync(stoppingToken);
                     
                     if (walletAddresses.Count == 0)
@@ -83,6 +89,9 @@ public class TransactionMonitorService : BackgroundService
                         await Task.Delay(_updateInterval, stoppingToken);
                         continue;
                     }
+
+                    var walletAddressDict = walletAddresses.ToDictionary(w => w.Address, w => w.Id);
+                    var addressList = walletAddresses.Select(w => w.Address).ToList();
 
                     _logger.LogInformation("Scanning blocks {StartBlock} to {EndBlock} for {WalletCount} wallets", 
                         _lastSyncedBlock + 1, endBlock, walletAddresses.Count);
@@ -95,79 +104,137 @@ public class TransactionMonitorService : BackgroundService
                         try
                         {
                             var blockWithTxs = await web3.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(
-                                new Nethereum.Hex.HexTypes.HexBigInteger(blockNumber));
+                                new HexBigInteger(blockNumber));
                             
-                            if (blockWithTxs == null || blockWithTxs.Transactions == null || !blockWithTxs.Transactions.Any())
+                            if (blockWithTxs?.Transactions == null || !blockWithTxs.Transactions.Any())
                             {
-                                _logger.LogDebug("Block {BlockNumber} has no transactions", blockNumber);
+                                _logger.LogTrace("Block {BlockNumber} has no transactions", blockNumber);
                                 continue;
                             }
 
-                            _logger.LogDebug("Processing {Count} transactions in block {BlockNumber}", 
+                            _logger.LogTrace("Processing {Count} transactions in block {BlockNumber}", 
                                 blockWithTxs.Transactions.Length, blockNumber);
                             
-                            // Check each transaction
+                            // Get transaction receipts for status determination
+                            var relevantTransactions = new List<(Nethereum.RPC.Eth.DTOs.Transaction tx, Guid walletId, bool isIncoming)>();
+                            
+                            // Check each transaction for relevance to our wallets
                             foreach (var tx in blockWithTxs.Transactions)
                             {
-                                if (walletAddresses.Contains(tx.From.ToLower()) || 
-                                   (tx.To != null && walletAddresses.Contains(tx.To.ToLower())))
+                                var fromAddress = tx.From?.ToLower();
+                                var toAddress = tx.To?.ToLower();
+                                
+                                // Check if this transaction involves any of our wallets
+                                if (!string.IsNullOrEmpty(fromAddress) && walletAddressDict.ContainsKey(fromAddress))
                                 {
-                                   
-                                    var exists = await context.Transactions
-                                        .AnyAsync(t => t.TransactionHash == tx.TransactionHash, stoppingToken);
-                                    
-                                    if (!exists)
-                                    {
-                                        _logger.LogInformation("Found new transaction {Hash} in block {Block}", 
-                                            tx.TransactionHash, blockNumber);
-                                        
-                                       
-                                        var wallet = await context.Wallets
-                                            .FirstOrDefaultAsync(w => 
-                                                w.Address.ToLower() == tx.From.ToLower() || 
-                                                (tx.To != null && w.Address.ToLower() == tx.To.ToLower()), 
-                                                stoppingToken);
-                                        
-                                        if (wallet != null)
-                                        {
-                                            var newTransaction = new Models.Transaction
-                                            {
-                                                TransactionHash = tx.TransactionHash,
-                                                SenderAddress = tx.From,
-                                                ReceiverAddress = tx.To,
-                                                Amount = Web3.Convert.FromWei(tx.Value),
-                                                BlockNumber = tx.BlockNumber.ToString(),
-                                                
-                                                BlockchainReference = tx.BlockHash,
-                                                WalletId = wallet.Id,
-                                                Status = TransactionFunctions.DetermineTransactionStatus(tx, latestBlock),
-                                                Type = TransactionFunctions.DetermineTransactionType(tx, walletAddresses),
-                                                CreatedAt = DateTime.UtcNow,
-                                                Description = TransactionFunctions.GenerateTransactionDescription(tx, walletAddresses)
-                                            };
-                                            
-                                            context.Transactions.Add(newTransaction);
-                                            await context.SaveChangesAsync(stoppingToken);
-                                            newTransactionsFound++;
-                                        }
-                                    }
+                                    // Outgoing transaction
+                                    relevantTransactions.Add((tx, walletAddressDict[fromAddress], false));
                                 }
+                                
+                                if (!string.IsNullOrEmpty(toAddress) && walletAddressDict.ContainsKey(toAddress))
+                                {
+                                    // Incoming transaction
+                                    relevantTransactions.Add((tx, walletAddressDict[toAddress], true));
+                                }
+                            }
+                            
+                            // Process relevant transactions
+                            foreach (var (tx, walletId, isIncoming) in relevantTransactions)
+                            {
+                                // Check if transaction already exists
+                                var exists = await context.Transactions
+                                    .AnyAsync(t => t.TransactionHash == tx.TransactionHash && t.WalletId == walletId, stoppingToken);
+                                
+                                if (!exists)
+                                {
+                                    _logger.LogInformation("Found new {Direction} transaction {Hash} for wallet {WalletId} in block {Block}", 
+                                        isIncoming ? "incoming" : "outgoing", tx.TransactionHash, walletId, blockNumber);
+                                    
+                                    // Get transaction receipt for status
+                                    var receipt = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx.TransactionHash);
+                                    
+                                    // Determine transaction status
+                                    TransactionStatus status;
+                                    if (receipt == null)
+                                    {
+                                        status = TransactionStatus.Pending;
+                                    }
+                                    else
+                                    {
+                                        status = receipt.Status.Value == 1 ? TransactionStatus.Successful : TransactionStatus.Failed;
+                                    }
+                                    
+                                    // Determine transaction type
+                                    TransactionType transactionType;
+                                    if (isIncoming)
+                                    {
+                                        // Check if it's from another wallet we manage (internal transfer)
+                                        var fromAddress = tx.From?.ToLower();
+                                        transactionType = !string.IsNullOrEmpty(fromAddress) && walletAddressDict.ContainsKey(fromAddress) 
+                                            ? TransactionType.Internal 
+                                            : TransactionType.Credit;
+                                    }
+                                    else
+                                    {
+                                        // Check if it's to another wallet we manage (internal transfer)
+                                        var toAddress = tx.To?.ToLower();
+                                        transactionType = !string.IsNullOrEmpty(toAddress) && walletAddressDict.ContainsKey(toAddress) 
+                                            ? TransactionType.Internal 
+                                            : TransactionType.Debit;
+                                    }
+                                    
+                                    // Create new transaction record
+                                    var newTransaction = new Models.Transaction
+                                    {
+                                        TransactionHash = tx.TransactionHash,
+                                        SenderAddress = tx.From ?? string.Empty,
+                                        ReceiverAddress = tx.To ?? string.Empty,
+                                        Amount = Web3.Convert.FromWei(tx.Value),
+                                        BlockNumber = tx.BlockNumber?.ToString() ?? blockNumber.ToString(),
+                                        BlockchainReference = tx.BlockHash ?? string.Empty,
+                                        WalletId = walletId,
+                                        Status = status,
+                                        Type = transactionType,
+                                        Currency = CurrencyType.ETH, // Assuming ETH for now
+                                        CreatedAt = DateTime.UtcNow,
+                                        UpdatedAt = DateTime.UtcNow,
+                                        Description = GenerateTransactionDescription(tx, isIncoming, transactionType)
+                                    };
+                                    
+                                    context.Transactions.Add(newTransaction);
+                                    newTransactionsFound++;
+                                }
+                            }
+                            
+                            // Save changes for this block
+                            if (newTransactionsFound > 0)
+                            {
+                                await context.SaveChangesAsync(stoppingToken);
                             }
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "Error processing block {BlockNumber}", blockNumber);
                             // Continue to next block despite error
+                            continue;
                         }
                     }
                     
-                   
+                    // Update last synced block
                     _lastSyncedBlock = endBlock;
-                    _logger.LogInformation("Scan complete. Found {Count} new transactions. Now synced to block {BlockNumber}", 
-                        newTransactionsFound, _lastSyncedBlock);
+                    
+                    if (newTransactionsFound > 0)
+                    {
+                        _logger.LogInformation("Scan complete. Found {Count} new transactions. Now synced to block {BlockNumber}", 
+                            newTransactionsFound, _lastSyncedBlock);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Scan complete. No new transactions found. Now synced to block {BlockNumber}", _lastSyncedBlock);
+                    }
                 }
                 
-             
+                // Wait before next scan
                 await Task.Delay(_updateInterval, stoppingToken);
             }
             catch (Exception ex)
@@ -186,26 +253,27 @@ public class TransactionMonitorService : BackgroundService
             var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
             var web3 = new Web3(_nodeUrl);
             
-           
+            // Get current block
             var currentBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
             
-      
+            // Try to find the last processed transaction
             var lastTx = await context.Transactions
-                .OrderByDescending(t => t.BlockNumber)
+                .Where(t => !string.IsNullOrEmpty(t.BlockNumber))
+                .OrderByDescending(t => t.CreatedAt)
                 .FirstOrDefaultAsync(stoppingToken);
                 
-            if (lastTx != null)
+            if (lastTx != null && ulong.TryParse(lastTx.BlockNumber, out var lastBlockNumber))
             {
                 // Start from the last transaction block we have
-                _lastSyncedBlock = ulong.Parse(lastTx.BlockNumber);
+                _lastSyncedBlock = lastBlockNumber;
                 _logger.LogInformation("Found existing transactions. Starting from block {BlockNumber}", _lastSyncedBlock);
             }
             else
             {
-                // No existing transactions, start scanning from a number of blocks ago
-                _lastSyncedBlock = (ulong)BigInteger.Max((BigInteger)0, currentBlock.Value - _blocksToScan);
-
-                _logger.LogInformation("No existing transactions. Starting historical scan from block {BlockNumber}", _lastSyncedBlock);
+                // No existing transactions, start scanning from configured number of blocks ago
+                _lastSyncedBlock = (ulong)Math.Max(0, (long)currentBlock.Value - _blocksToScan);
+                _logger.LogInformation("No existing transactions. Starting historical scan from block {BlockNumber} ({BlocksToScan} blocks ago)", 
+                    _lastSyncedBlock, _blocksToScan);
             }
         }
         catch (Exception ex)
@@ -213,13 +281,30 @@ public class TransactionMonitorService : BackgroundService
             _logger.LogError(ex, "Error initializing block scan point");
             
             // Default to scanning from recent blocks if there's an error
-            var web3 = new Web3(_nodeUrl);
-            var currentBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
-            _lastSyncedBlock = (ulong)BigInteger.Max((BigInteger)0, currentBlock.Value - 100);
-
-       
-            
-            _logger.LogInformation("Defaulting to start scan from block {BlockNumber}", _lastSyncedBlock);
+            try
+            {
+                var web3 = new Web3(_nodeUrl);
+                var currentBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+                _lastSyncedBlock = (ulong)Math.Max(0, (long)currentBlock.Value - 100);
+                
+                _logger.LogInformation("Defaulting to start scan from block {BlockNumber}", _lastSyncedBlock);
+            }
+            catch (Exception initEx)
+            {
+                _logger.LogError(initEx, "Failed to initialize block scan point. Starting from block 0.");
+                _lastSyncedBlock = 0;
+            }
         }
+    }
+    
+    private static string GenerateTransactionDescription(Nethereum.RPC.Eth.DTOs.Transaction tx, bool isIncoming, TransactionType type)
+    {
+        return type switch
+        {
+            TransactionType.Credit => $"Received from {tx.From}",
+            TransactionType.Debit => $"Sent to {tx.To}",
+            TransactionType.Internal => $"Internal transfer: {tx.From} → {tx.To}",
+            _ => isIncoming ? $"Incoming transaction from {tx.From}" : $"Outgoing transaction to {tx.To}"
+        };
     }
 }

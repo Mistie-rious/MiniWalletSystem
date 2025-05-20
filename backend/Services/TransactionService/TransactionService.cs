@@ -64,6 +64,11 @@ namespace WalletBackend.Services.TransactionService;
 
             // Create transaction with currency info
             var blockchainResponse = await SubmitToEthereumNetworkAsync(privateKey, request);
+            _logger.LogInformation("Blockchain response JSON:\n{Json}", 
+                JsonSerializer.Serialize(blockchainResponse, new JsonSerializerOptions { WriteIndented = true }));
+
+
+
 
 // 3) build the transaction only once
             var tx = new Transaction

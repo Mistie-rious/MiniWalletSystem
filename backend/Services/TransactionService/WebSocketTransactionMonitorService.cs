@@ -410,125 +410,133 @@ public class WebSocketTransactionMonitorService : BackgroundService
     }
     
     private async Task ProcessBlockAsync(ulong blockNumber, CancellationToken stoppingToken)
+{
+    using var scope = _scopeFactory.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
+    var web3 = CreateHttpWeb3Instance(); // HTTP for fetching
+
+    try
     {
-        using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
-        var web3 = CreateHttpWeb3Instance(); // Use HTTP for block fetching
+        _logger.LogInformation("🚀 Starting to process block {BlockNumber}", blockNumber);
 
-        try
+        var blockWithTxs = await ExecuteWithRetryAsync(
+            async () => await web3.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockNumber)),
+            $"GetBlockWithTransactions-{blockNumber}");
+
+        if (blockWithTxs?.Transactions == null || !blockWithTxs.Transactions.Any())
         {
-            _logger.LogInformation("Processing block {BlockNumber} via HTTP", blockNumber);
-
-            // Use retry mechanism for fetching block data via HTTP
-            var blockWithTxs = await ExecuteWithRetryAsync(async () => 
-                await web3.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockNumber)),
-                $"GetBlockWithTransactions-{blockNumber}");
-
-            if (blockWithTxs?.Transactions == null || !blockWithTxs.Transactions.Any())
-            {
-                _logger.LogInformation("Block {BlockNumber} has no transactions", blockNumber);
-                return;
-            }
-
-            _logger.LogInformation("Block {BlockNumber} has {TxCount} transactions (fetched via HTTP)", 
-                blockNumber, blockWithTxs.Transactions.Length);
-
-            // Cache wallets once per block
-            var wallets = await context.Wallets.ToListAsync(stoppingToken);
-            var walletLookup = wallets.ToDictionary(w => w.Address.ToLower(), w => w);
-
-            if (!walletLookup.Any())
-            {
-                _logger.LogWarning("No wallet addresses found to monitor for block {BlockNumber}", blockNumber);
-                return;
-            }
-
-            var newTransactions = new List<Models.Transaction>();
-            int relevantTransactions = 0;
-
-            // Process transactions
-            foreach (var tx in blockWithTxs.Transactions)
-            {
-                if (tx == null || stoppingToken.IsCancellationRequested) continue;
-
-                var fromLower = tx.From?.ToLower();
-                var toLower = tx.To?.ToLower();
-
-                var isFromOurWallet = fromLower != null && walletLookup.ContainsKey(fromLower);
-                var isToOurWallet = toLower != null && walletLookup.ContainsKey(toLower);
-
-                if (isFromOurWallet || isToOurWallet)
-                {
-                    relevantTransactions++;
-
-                    // Check if transaction already exists
-                    var exists = await context.Transactions
-                        .AnyAsync(t => t.TransactionHash == tx.TransactionHash, stoppingToken);
-                    
-                    if (exists)
-                    {
-                        _logger.LogDebug("Transaction {TxHash} already exists, skipping", tx.TransactionHash);
-                        continue;
-                    }
-
-                    // Select the appropriate wallet
-                    var wallet = isToOurWallet && toLower != null && walletLookup.TryGetValue(toLower, out var receiverWallet)
-                                ? receiverWallet
-                                : isFromOurWallet && fromLower != null && walletLookup.TryGetValue(fromLower, out var senderWallet)
-                                ? senderWallet
-                                : null;
-
-                    if (wallet == null) continue;
-
-                    var amount = Web3.Convert.FromWei(tx.Value);
-
-                    var newTransaction = new Models.Transaction
-                    {
-                        TransactionHash = tx.TransactionHash,
-                        SenderAddress = tx.From,
-                        ReceiverAddress = tx.To,
-                        Amount = amount,
-                        BlockNumber = blockNumber.ToString(),
-                        BlockchainReference = tx.BlockHash,
-                        WalletId = wallet.Id,
-                        Status = TransactionFunctions.DetermineTransactionStatus(tx, new HexBigInteger(blockNumber)),
-                        Type = TransactionFunctions.DetermineTransactionType(tx, walletLookup.Keys.ToList()),
-                        CreatedAt = DateTime.UtcNow,
-                        Description = TransactionFunctions.GenerateTransactionDescription(tx, walletLookup.Keys.ToList())
-                    };
-
-                    newTransactions.Add(newTransaction);
-                }
-            }
-
-            _logger.LogInformation("Block {BlockNumber}: Found {RelevantCount} relevant, {NewCount} new transactions", 
-                blockNumber, relevantTransactions, newTransactions.Count);
-
-            // Save transactions and update balances
-            if (newTransactions.Any())
-            {
-                // Process in smaller batches for better performance
-                const int batchSize = 50;
-                for (int i = 0; i < newTransactions.Count; i += batchSize)
-                {
-                    var batch = newTransactions.Skip(i).Take(batchSize).ToList();
-                    context.Transactions.AddRange(batch);
-                    await context.SaveChangesAsync(stoppingToken);
-                }
-
-                // Update wallet balances
-                await UpdateWalletBalancesAsync(context, newTransactions, wallets, stoppingToken);
-
-                _logger.LogInformation("Successfully processed block {BlockNumber} with {Count} new transactions", 
-                    blockNumber, newTransactions.Count);
-            }
+            _logger.LogWarning("❌ Block {BlockNumber} has no transactions", blockNumber);
+            return;
         }
-        catch (Exception ex)
+
+        _logger.LogInformation("📦 Block {BlockNumber} has {Count} transactions", blockNumber, blockWithTxs.Transactions.Length);
+
+        var wallets = await context.Wallets.ToListAsync(stoppingToken);
+        _logger.LogInformation("👛 Loaded {WalletCount} wallets from DB", wallets.Count);
+
+        foreach (var w in wallets)
+            _logger.LogDebug("➡️ Watching wallet: {Address}", w.Address);
+
+        var walletLookup = wallets.ToDictionary(w => w.Address.ToLowerInvariant(), w => w);
+
+        if (!walletLookup.Any())
         {
-            _logger.LogError(ex, "Error processing block {BlockNumber}", blockNumber);
-            throw;
+            _logger.LogWarning("⚠️ No wallets found to monitor for block {BlockNumber}", blockNumber);
+            return;
+        }
+
+        var newTransactions = new List<Transaction>();
+        int relevantTransactions = 0;
+
+        foreach (var tx in blockWithTxs.Transactions)
+        {
+            var fromLower = tx.From?.ToLowerInvariant();
+            var toLower = tx.To?.ToLowerInvariant();
+
+            _logger.LogDebug("🔍 TX: {Hash} From: {From} To: {To}", tx.TransactionHash, fromLower, toLower);
+
+            var isFromOurWallet = fromLower != null && walletLookup.ContainsKey(fromLower);
+            var isToOurWallet   = toLower   != null && walletLookup.ContainsKey(toLower);
+
+            if (!isFromOurWallet && !isToOurWallet)
+            {
+                _logger.LogTrace("Skipping TX {Hash} - no match with our wallets", tx.TransactionHash);
+                continue;
+            }
+
+            relevantTransactions++;
+
+            var wallet = isToOurWallet && walletLookup.TryGetValue(toLower!, out var receiverWallet)
+                ? receiverWallet
+                : isFromOurWallet && walletLookup.TryGetValue(fromLower!, out var senderWallet)
+                ? senderWallet
+                : null;
+
+            if (wallet == null)
+            {
+                _logger.LogWarning("⚠️ Could not resolve wallet for TX {Hash}", tx.TransactionHash);
+                continue;
+            }
+
+            var alreadyExists = await context.Transactions
+                .AnyAsync(t => t.TransactionHash == tx.TransactionHash && t.WalletId == wallet.Id, stoppingToken);
+
+            if (alreadyExists)
+            {
+                _logger.LogDebug("⏩ Skipping duplicate TX {Hash} for wallet {WalletId}", tx.TransactionHash, wallet.Id);
+                continue;
+            }
+
+            var amount = Web3.Convert.FromWei(tx.Value);
+
+            var newTx = new Transaction
+            {
+                Id = Guid.NewGuid(),
+                TransactionHash = tx.TransactionHash,
+                SenderAddress = tx.From,
+                ReceiverAddress = tx.To,
+                Amount = amount,
+                BlockNumber = blockNumber.ToString(),
+                BlockchainReference = tx.BlockHash,
+                WalletId = wallet.Id,
+                Status = TransactionFunctions.DetermineTransactionStatus(tx, new HexBigInteger(blockNumber)),
+                Type = TransactionFunctions.DetermineTransactionType(tx, walletLookup.Keys.ToList()),
+                Currency = CurrencyType.ETH,
+                Description = TransactionFunctions.GenerateTransactionDescription(tx, walletLookup.Keys.ToList()),
+                CreatedAt = DateTime.UtcNow,
+                Timestamp = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            newTransactions.Add(newTx);
+            _logger.LogInformation("✅ Collected new TX {Hash} for wallet {WalletId}", tx.TransactionHash, wallet.Id);
+        }
+
+        _logger.LogInformation("📊 Block {BlockNumber}: Found {Relevant} relevant, {NewCount} new transactions", 
+            blockNumber, relevantTransactions, newTransactions.Count);
+
+        if (newTransactions.Any())
+        {
+            const int batchSize = 50;
+            for (int i = 0; i < newTransactions.Count; i += batchSize)
+            {
+                var batch = newTransactions.Skip(i).Take(batchSize).ToList();
+                context.Transactions.AddRange(batch);
+                await context.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation("💾 Saved batch of {Count} transactions", batch.Count);
+            }
+
+            await UpdateWalletBalancesAsync(context, newTransactions, wallets, stoppingToken);
+            _logger.LogInformation("💰 Updated balances for wallets in block {BlockNumber}", blockNumber);
         }
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "🔥 Error processing block {BlockNumber}", blockNumber);
+        throw;
+    }
+}
+
 
     private async Task UpdateWalletBalancesAsync(WalletContext context, List<Models.Transaction> transactions, 
         List<Wallet> wallets, CancellationToken stoppingToken)

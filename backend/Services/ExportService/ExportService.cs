@@ -68,25 +68,40 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
             // Return empty CSV instead of null
             return string.Empty;
         }
-        
+        const decimal ethToNairaRate = 4_500_000;
         var totalAmount = transactions.Sum(t => t.Amount);
+        decimal totalNaira = transactions.Sum(t => t.Amount * ethToNairaRate);
+        var ngCulture = CultureInfo.CreateSpecificCulture("en-NG");
+        string totalNairaFormatted = totalNaira.ToString("C2", ngCulture);
+
         using (var memoryStream = new MemoryStream())
         using (var writer = new StreamWriter(memoryStream))
         using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
         {
             // Add null handling configuration
             csv.Context.TypeConverterOptionsCache.GetOptions<string>();
+            
             // Create records with null-safe property access
-            var records = transactions.Select(t => new
+           
+
+            var records = transactions.Select(t =>
             {
-         
-               t.Amount,
-             
-               t.Status ,
-                t.Type,
-    
-                CreatedAt = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                Description = t.Description ?? string.Empty
+                decimal nairaValue = t.Amount * ethToNairaRate;
+                string nairaFormatted = nairaValue.ToString("C2", ngCulture);
+
+                // Optionally, if you're building a table here, do it separately from the Select
+               
+
+                return new
+                {
+                    t.Amount,
+                    NairaValue = nairaFormatted,
+                    t.Status,
+                    t.Type,
+                    CreatedAt = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                    Description = t.Description ?? string.Empty,
+                    
+                };
             });
 
 
@@ -99,6 +114,7 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
             csv.NextRecord();
             csv.WriteField("Total");
             csv.WriteField(totalAmount.ToString("F6"));
+            csv.WriteField(totalNairaFormatted);
             csv.WriteField(""); 
             csv.WriteField(""); 
             csv.WriteField("");
@@ -197,6 +213,7 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 }
                 
                 var totalAmount = transactions.Sum(t => t.Amount);
+                
 
                 // Create table with adjusted column widths
                 var table = new Table(UnitValue.CreatePercentArray(new float[] {  12, 12, 12, 12,  19, 21 }))
@@ -221,7 +238,8 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 // Add headers with styling
          
                
-                AddHeaderCell(table, "Amount (ETH)", headerStyle);
+                AddHeaderCell(table, "Amount (N)", headerStyle);
+                AddHeaderCell(table, "Asset", headerStyle );
 
                 AddHeaderCell(table, "Status", headerStyle);
                 AddHeaderCell(table, "Type", headerStyle);
@@ -230,13 +248,24 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 AddHeaderCell(table, "Description", headerStyle);
 
                 // Add transaction rows with alternating colors
+                const decimal ethToNairaRate = 4_500_000;
+                var ngCulture = CultureInfo.CreateSpecificCulture("en-NG");
+                  
+                    
+                decimal totalNaira = transactions.Sum(t => t.Amount * ethToNairaRate);
+                string totalNairaFormatted = totalNaira.ToString("C2", ngCulture);
                 bool isAlternateRow = false;
                 foreach (var tx in transactions)
                 {
                     var rowStyle = isAlternateRow ? alternateCellStyle : cellStyle;
+                  
+
+// compute converted amount
+                    decimal nairaValue = tx.Amount * ethToNairaRate;
+                   
                     
-                    
-                    AddCell(table, tx.Amount.ToString("F6"), rowStyle);
+                    AddCell(table, nairaValue.ToString("C2", ngCulture), rowStyle);
+                    AddCell(table, tx.Currency.ToString(), rowStyle);
        
                     AddCell(table, tx.Status.ToString(), rowStyle);
                     AddCell(table, tx.Type.ToString(), rowStyle);
@@ -252,7 +281,7 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 
                 // Add footnote
                 
-                document.Add(new Paragraph($"Total = ETH {totalAmount.ToString("F6")}")
+                document.Add(new Paragraph($"Total = N {totalNairaFormatted}")
                     .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))
                     .SetFontSize(10)
                     .SetTextAlignment(TextAlignment.RIGHT)
