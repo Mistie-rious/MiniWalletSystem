@@ -16,95 +16,97 @@ using WalletBackend.Services.WalletService;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load .env and environment variables
 Env.Load();
-// right after Env.Load() and builder.Configuration.AddEnvironmentVariables()
+builder.Configuration.AddEnvironmentVariables();
+
+// Load connection string from env
+var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
+
+// Configure JwtSettings from appsettings or env
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings")
 );
 
-
-builder.Configuration.AddEnvironmentVariables();
-
-var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
-
-
+// Enable CORS for your React frontend
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
         policy => policy.WithOrigins("http://localhost:3000")
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()); 
+            .AllowCredentials());
 });
 
-
-
-
-builder.Services.AddDbContext<WalletContext>(options => 
+// Configure EF Core
+builder.Services.AddDbContext<WalletContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// Add Identity for user management
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<WalletContext>()
+    .AddDefaultTokenProviders();
+
+// IMPORTANT: Force JWT to be the default auth scheme
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    var jwt = builder.Configuration.GetSection("JwtSettings");
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwt["Issuer"],
+        ValidAudience = jwt["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(jwt["Key"]!))
+    };
+});
+
+// Add other services
 builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
-    .AddEntityFrameworkStores<WalletContext>()
-    .AddDefaultTokenProviders();
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, NoOpEmailSender<ApplicationUser>>();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        var jwt = builder.Configuration.GetSection("JwtSettings");
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwt["Issuer"],
-            ValidAudience = jwt["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwt["Key"]!))
-        };
-    });
 
+// Custom services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddScoped<IWalletUnlockService, WalletUnlockService>();
 builder.Services.AddScoped<IExportService, ExportService>();
-/*builder.Services.AddSingleton<TransactionMonitorService>();
-builder.Services.AddHostedService(provider => provider.GetRequiredService<TransactionMonitorService>());*/
 builder.Services.AddSingleton<WebSocketTransactionMonitorService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WebSocketTransactionMonitorService>());
 builder.Services.AddHostedService<WalletBalanceService>();
 builder.Services.AddHostedService<TransactionConfirmationService>();
+
 var app = builder.Build();
 
-app.MapIdentityApi<ApplicationUser>();
+// Configure middleware
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
 app.UseRouting();
 app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapIdentityApi<ApplicationUser>();
 app.MapControllers();
-
-app.UseHttpsRedirection();
-
-
-
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(); 
-}
-
-
 
 app.Run();

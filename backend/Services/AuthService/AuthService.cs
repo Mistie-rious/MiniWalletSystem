@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
 using NBitcoin;
@@ -177,6 +178,26 @@ public class AuthService : IAuthService
         {
             Succeeded = false,
             SignInResult = result
+        };
+    }
+    
+    
+    public async Task<UserDto> GetByIdAsync(string userId)
+    {
+        var user = await _context.Users
+            .Include(u => u.Wallet)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+            throw new KeyNotFoundException($"User '{userId}' not found");
+
+        return new UserDto
+        {
+            Id            = user.Id,
+            Email         = user.Email,
+            Username      = user.UserName,
+            WalletId      = user.Wallet.Id,
+            WalletAddress = user.Wallet.Address
         };
     }
     

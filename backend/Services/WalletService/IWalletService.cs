@@ -9,4 +9,5 @@ public interface IWalletService
     Task<List<Transaction>> GetTransactions(Guid walletId, string userId);
 
 
+    Task<decimal> GetBalanceByUserIdAsync(string userId);
 }

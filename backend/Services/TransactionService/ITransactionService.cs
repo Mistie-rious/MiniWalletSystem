@@ -27,4 +27,15 @@ public interface ITransactionService
     Task<TransactionResult> SendCurrencyAsync(CurrencyTransactionRequest request);
     Task<decimal> GetCurrencyBalance(Guid walletId, CurrencyType currency);
     Task<TransactionResult> SendEthereumAsync(CurrencyTransactionRequest request);
+
+    Task<IEnumerable<ViewTransactionModel>> GetTransactionsByUserIdAsync(string userId);
+
+    Task<IEnumerable<ViewTransactionModel>> SearchTransactionsByUserIdAsync(
+        string userId,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        decimal? minAmount = null,
+        decimal? maxAmount = null,
+        string? transactionHash = null,
+        TransactionStatus? status = null);
 }

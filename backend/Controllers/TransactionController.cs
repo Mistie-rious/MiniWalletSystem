@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Nethereum.Web3;
@@ -114,21 +115,21 @@ public class TransactionController: ControllerBase
         }
     }
     
-    [HttpGet("balance")]
-        public async Task<ActionResult<string>> GetBalance(string address)
-        {
-            try
-            {
-                var web3 = new Web3(_nodeUrl);
-                var balance = await web3.Eth.GetBalance.SendRequestAsync(address);
-                var balanceEth = Web3.Convert.FromWei(balance);
-                return Ok($"Balance for address: {balanceEth} ETH");
-            }
-            catch(System.Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
+    // [HttpGet("balance")]
+    //     public async Task<ActionResult<string>> GetBalance(string address)
+    //     {
+    //         try
+    //         {
+    //             var web3 = new Web3(_nodeUrl);
+    //             var balance = await web3.Eth.GetBalance.SendRequestAsync(address);
+    //             var balanceEth = Web3.Convert.FromWei(balance);
+    //             return Ok($"Balance for address: {balanceEth} ETH");
+    //         }
+    //         catch(System.Exception ex)
+    //         {
+    //             return BadRequest(new { message = ex.Message });
+    //         }
+    //     }
         
         
     [HttpPost("unlock")]
@@ -146,6 +147,54 @@ public class TransactionController: ControllerBase
         catch (UnauthorizedAccessException)
         {
             return BadRequest("Invalid password");
+        }
+    }
+    
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId)
+    {
+        var txs = await _transactionService.GetTransactionsByUserIdAsync(userId);
+        return Ok(txs);
+    }
+
+    /// <summary>
+    /// GET /api/transactions/user/{userId}/search
+    /// supports same filters as /search, scoped to that user.
+    /// </summary>
+    [HttpGet("user/{userId}/search")]
+    public async Task<IActionResult> SearchByUserId(
+        string userId,
+        [FromQuery] DateTime? startDate, 
+        [FromQuery] DateTime? endDate,
+        [FromQuery] decimal? minAmount,
+        [FromQuery] decimal? maxAmount,
+        [FromQuery] string? transactionHash,
+        [FromQuery] TransactionStatus? status)
+    {
+        var txs = await _transactionService.SearchTransactionsByUserIdAsync(
+            userId, startDate, endDate, minAmount, maxAmount, transactionHash, status);
+        return Ok(txs);
+    }
+    
+    [HttpGet("balance")]
+    public async Task<IActionResult> GetWalletBalance()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        try
+        {
+            var balance = await _walletService.GetBalanceByUserIdAsync(userId);
+            return Ok(new
+            {
+                success = true,
+                balance
+            });
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { success = false, message = ex.Message });
         }
     }
     

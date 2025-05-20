@@ -38,7 +38,8 @@ namespace WalletBackend.Services.TransactionService;
             _nodeUrl = configuration["Ethereum:NodeUrl"];
             _walletUnlockService = walletUnlockService;  
         }
-
+            
+        
         public async Task<CreateTransactionModel> CreateTransactionAsync(CreateTransactionModel model)
         {
             var transaction = _mapper.Map<Models.Transaction>(model);
@@ -275,6 +276,94 @@ namespace WalletBackend.Services.TransactionService;
             throw;
         }
     }
+        
+        public async Task<IEnumerable<ViewTransactionModel>> GetTransactionsByUserIdAsync(string userId)
+        {
+            try
+            {
+                // First get all wallets for this user
+                var userWallets = await _context.Wallets
+                    .Where(w => w.UserId == userId)
+                    .Select(w => w.Id)
+                    .ToListAsync();
+
+                if (!userWallets.Any())
+                {
+                    return Enumerable.Empty<ViewTransactionModel>();
+                }
+
+                // Get all transactions for these wallets
+                var transactions = await _context.Transactions
+                    .Where(t => userWallets.Contains(t.WalletId))
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ToListAsync();
+
+                return _mapper.Map<IEnumerable<ViewTransactionModel>>(transactions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting transactions for user {UserId}", userId);
+                throw;
+            }
+        }
+        
+        
+        public async Task<IEnumerable<ViewTransactionModel>> SearchTransactionsByUserIdAsync(
+            string userId,
+            DateTime? startDate = null,
+            DateTime? endDate = null,
+            decimal? minAmount = null,
+            decimal? maxAmount = null,
+            string? transactionHash = null,
+            TransactionStatus? status = null)
+        {
+            // 1. Get wallets
+            var walletIds = await _context.Wallets
+                .Where(w => w.UserId == userId)
+                .Select(w => w.Id)
+                .ToListAsync();
+
+            // 2. Base query
+            var query = _context.Transactions
+                .Where(t => walletIds.Contains(t.WalletId))
+                .AsQueryable();
+
+            // 3. Apply same filters as before
+            if (startDate.HasValue)
+                query = query.Where(t => t.CreatedAt >= startDate.Value);
+
+            if (endDate.HasValue)
+            {
+                var adjustedEnd = endDate.Value.Date.AddDays(1).AddSeconds(-1);
+                query = query.Where(t => t.CreatedAt <= adjustedEnd);
+            }
+
+            if (minAmount.HasValue)
+                query = query.Where(t => t.Amount >= minAmount.Value);
+
+            if (maxAmount.HasValue)
+                query = query.Where(t => t.Amount <= maxAmount.Value);
+
+            if (!string.IsNullOrWhiteSpace(transactionHash))
+                query = query.Where(t =>
+                    t.TransactionHash.Contains(transactionHash) ||
+                    t.BlockchainReference.Contains(transactionHash));
+
+            if (status.HasValue)
+                query = query.Where(t => t.Status == status.Value);
+
+            // 4. Execute
+            var results = await query
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            return _mapper.Map<IEnumerable<ViewTransactionModel>>(results);
+        }
+        
+        
+        
+        
+        
         
         
         public async Task<TransactionResult> SendCurrencyAsync(CurrencyTransactionRequest request)

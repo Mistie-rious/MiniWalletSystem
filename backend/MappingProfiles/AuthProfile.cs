@@ -13,5 +13,10 @@ public class AuthProfile: Profile
         
         CreateMap<LoginModel, ApplicationUser>()
             .ForMember(dest => dest.PasswordHash, opt => opt.MapFrom(src => src.Password));
+        
+        // In your AutoMapper profile class
+
+      
+
     }
 }

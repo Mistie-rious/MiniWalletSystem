@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using WalletBackend.Models;
@@ -103,6 +105,53 @@ public class AuthController: ControllerBase
 
           return Unauthorized(new { error = "Invalid login attempt." });
      }
+     
+     [HttpGet("{userId}")]
+     public async Task<IActionResult> GetById(string userId)
+     {
+          try
+          {
+               var dto = await _authService.GetByIdAsync(userId);
+               return Ok(new { success = true, data = dto });
+          }
+          catch (KeyNotFoundException)
+          {
+               return NotFound(new { success = false, message = "User not found" });
+          }
+          catch (Exception ex)
+          {
+               _logger.LogError(ex, "Error fetching user {UserId}", userId);
+               return StatusCode(500, new { success = false, message = "Server error" });
+          }
+     }
+     
+     [HttpGet("me")]
+     [Authorize]
+     public async Task<IActionResult> Me()
+     {
+          try
+          {
+               // 1) extract user ID from JWT "sub" or NameIdentifier
+               var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+               if (string.IsNullOrEmpty(userId))
+                    return Unauthorized(new { success = false, message = "Invalid token" });
+
+               // 2) reuse the same lookup
+               var dto = await _authService.GetByIdAsync(userId);
+               return Ok(new { success = true, data = dto });
+          }
+          catch (KeyNotFoundException)
+          {
+               return NotFound(new { success = false, message = "User not found" });
+          }
+          catch (Exception ex)
+          {
+               _logger.LogError(ex, "Error in /api/users/me");
+               return StatusCode(500, new { success = false, message = "Server error" });
+          }
+     }
+     
+     
      
      }
      

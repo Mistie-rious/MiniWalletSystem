@@ -6,6 +6,7 @@ using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.KeyStore;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Signer;
+using Nethereum.Web3;
 using WalletBackend.Data;
 using WalletBackend.Models.Responses;
 using Transaction = WalletBackend.Models.Transaction;
@@ -16,10 +17,13 @@ public class WalletService : IWalletService
 {
     
     private readonly WalletContext _context;
+    private readonly Web3 _web3;
+    private readonly TimeSpan _staleThreshold = TimeSpan.FromMinutes(5);
 
     public WalletService(WalletContext context)
     {
         _context = context;
+        
     }
 
     public (string EncryptedKeyStore, string Address, string Mnemonic) CreateNewWallet(string password)
@@ -70,4 +74,17 @@ public class WalletService : IWalletService
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
     }
+    
+    public async Task<decimal> GetBalanceByUserIdAsync(string userId)
+    {
+        var wallet = await _context.Wallets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(w => w.UserId == userId);
+
+        if (wallet == null)
+            throw new Exception("Wallet not found for user.");
+
+        return wallet.Balance; // Assuming Balance is stored as decimal
+    }
+
 }

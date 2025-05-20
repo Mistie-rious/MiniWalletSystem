@@ -9,4 +9,5 @@ public interface IAuthService
 
     
     Task<AuthResult> LoginAsync(LoginModel model);
+    Task<UserDto> GetByIdAsync(string userId);
 }
