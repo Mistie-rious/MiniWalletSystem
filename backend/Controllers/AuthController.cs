@@ -151,6 +151,23 @@ public class AuthController: ControllerBase
           }
      }
      
+     [HttpPost("validate")]
+     public async Task<IActionResult> ValidateToken([FromBody] TokenValidationRequest request)
+     {
+          if (string.IsNullOrEmpty(request?.Token))
+          {
+               return BadRequest(new { message = "Token is required." });
+          }
+
+          var userDto = await _authService.ValidateTokenAndGetUserAsync(request.Token);
+          if (userDto != null)
+          {
+               return Ok(userDto);
+          }
+
+          return Unauthorized(new { message = "Invalid token" });
+     }
+     
      
      
      }

@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 
 using WalletBackend.Data;
 using WalletBackend.Models;
+using WalletBackend.Models.Enums;
 using Document = iText.Layout.Document;
 
 
@@ -86,41 +87,55 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
 
             var records = transactions.Select(t =>
             {
-                decimal nairaValue = t.Amount * ethToNairaRate;
-                string nairaFormatted = nairaValue.ToString("C2", ngCulture);
+                // Determine direction from your Type enum
+                var incoming = t.Type == TransactionType.Credit ? t.Amount : 0m;
+                var outgoing = t.Type == TransactionType.Debit  ? t.Amount : 0m;
 
-                // Optionally, if you're building a table here, do it separately from the Select
-               
+                // Convert to Naira
+                var inNaira  = (incoming * ethToNairaRate).ToString("C2", ngCulture);
+                var outNaira = (outgoing * ethToNairaRate).ToString("C2", ngCulture);
 
                 return new
                 {
-                    t.Amount,
-                    NairaValue = nairaFormatted,
+                    IncomingAmount   = incoming,
+                    IncomingNaira    = inNaira,
+                    OutgoingAmount   = outgoing,
+                    OutgoingNaira    = outNaira,
                     t.Status,
                     t.Type,
-                    CreatedAt = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                    Description = t.Description ?? string.Empty,
-                    
+                    CreatedAt        = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                    Description      = t.Description ?? string.Empty,
                 };
             });
+
 
 
             // Write headers first to ensure they're always included
             csv.WriteHeader<dynamic>();
             csv.NextRecord();
             
-            // Write records
+            
             csv.WriteRecords(records);
+            var totalIn  = transactions
+                .Where(t => t.Type == TransactionType.Credit)
+                .Sum(t => t.Amount);
+            var totalOut = transactions
+                .Where(t => t.Type == TransactionType.Debit)
+                .Sum(t => t.Amount);
+
+            var totalInN  = (totalIn  * ethToNairaRate).ToString("C2", ngCulture);
+            var totalOutN = (totalOut * ethToNairaRate).ToString("C2", ngCulture);
+
+
             csv.NextRecord();
-            csv.WriteField("Total");
-            csv.WriteField(totalAmount.ToString("F6"));
-            csv.WriteField(totalNairaFormatted);
-            csv.WriteField(""); 
-            csv.WriteField(""); 
-            csv.WriteField("");
-            csv.WriteField("");
-            csv.WriteField(""); 
+            csv.WriteField("Total Credit");
+            csv.WriteField(totalIn.ToString("F6"));
+            csv.WriteField(totalInN);
+            csv.WriteField("Total Debit");
+            csv.WriteField(totalOut.ToString("F6"));
+            csv.WriteField(totalOutN);
             csv.NextRecord();
+
 
             await writer.FlushAsync();
             memoryStream.Position = 0; // Reset position to read from start
@@ -215,10 +230,9 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 var totalAmount = transactions.Sum(t => t.Amount);
                 
 
-                // Create table with adjusted column widths
-                var table = new Table(UnitValue.CreatePercentArray(new float[] {  12, 12, 12, 12,  19, 21 }))
-                    .UseAllAvailableWidth()
-                    .SetMarginBottom(15);
+                var table = new Table(UnitValue.CreatePercentArray(
+                        new float[] { 10, 10, 10, 12, 12, 19, 21 }))
+                    .UseAllAvailableWidth();
                 
                 // Define styles
                 Style headerStyle = new Style()
@@ -238,13 +252,12 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 // Add headers with styling
          
                
-                AddHeaderCell(table, "Amount (N)", headerStyle);
-                AddHeaderCell(table, "Asset", headerStyle );
-
-                AddHeaderCell(table, "Status", headerStyle);
-                AddHeaderCell(table, "Type", headerStyle);
-
-                AddHeaderCell(table, "Date", headerStyle);
+                AddHeaderCell(table, "Incoming (N)",      headerStyle);
+                AddHeaderCell(table, "Outgoing (N)",     headerStyle);
+                AddHeaderCell(table, "Asset",       headerStyle);
+                AddHeaderCell(table, "Status",      headerStyle);
+                AddHeaderCell(table, "Type",        headerStyle);
+                AddHeaderCell(table, "Date",        headerStyle);
                 AddHeaderCell(table, "Description", headerStyle);
 
                 // Add transaction rows with alternating colors
@@ -255,37 +268,48 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 decimal totalNaira = transactions.Sum(t => t.Amount * ethToNairaRate);
                 string totalNairaFormatted = totalNaira.ToString("C2", ngCulture);
                 bool isAlternateRow = false;
+                
                 foreach (var tx in transactions)
+         
                 {
                     var rowStyle = isAlternateRow ? alternateCellStyle : cellStyle;
-                  
+                    var incoming = tx.Type == TransactionType.Credit ? tx.Amount : 0m;
+                    var outgoing = tx.Type == TransactionType.Debit  ? tx.Amount : 0m;
+                    var inN       = (incoming * ethToNairaRate).ToString("C2", ngCulture);
+                    var outN      = (outgoing * ethToNairaRate).ToString("C2", ngCulture);
 
-// compute converted amount
-                    decimal nairaValue = tx.Amount * ethToNairaRate;
-                   
-                    
-                    AddCell(table, nairaValue.ToString("C2", ngCulture), rowStyle);
+                    AddCell(table, inN,       rowStyle);
+                    AddCell(table, outN,      rowStyle);
                     AddCell(table, tx.Currency.ToString(), rowStyle);
-       
-                    AddCell(table, tx.Status.ToString(), rowStyle);
-                    AddCell(table, tx.Type.ToString(), rowStyle);
-       
+                    AddCell(table, tx.Status.ToString(),   rowStyle);
+                    AddCell(table, tx.Type.ToString(),     rowStyle);
                     AddCell(table, tx.CreatedAt.ToString("dddd, MMMM dd, yyyy h:mm tt"), rowStyle);
+                    AddCell(table, tx.Description ?? "N/A", rowStyle);
 
-                    AddCell(table, (tx.Description ?? "N/A"), rowStyle);
-                    
                     isAlternateRow = !isAlternateRow;
                 }
+
 
                 document.Add(table);
                 
                 // Add footnote
                 
-                document.Add(new Paragraph($"Total = N {totalNairaFormatted}")
+                var totalIn  = transactions
+                    .Where(t => t.Type == TransactionType.Credit)
+                    .Sum(t => t.Amount);
+                var totalOut = transactions
+                    .Where(t => t.Type == TransactionType.Debit)
+                    .Sum(t => t.Amount);
+
+                var totalInN  = (totalIn  * ethToNairaRate).ToString("C2", ngCulture);
+                var totalOutN = (totalOut * ethToNairaRate).ToString("C2", ngCulture);
+
+                document.Add(new Paragraph(
+                        $"Total Credit (₦): {totalInN}    Total Debit (₦): {totalOutN}")
                     .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))
                     .SetFontSize(10)
-                    .SetTextAlignment(TextAlignment.RIGHT)
-                    .SetMarginTop(10));
+                    .SetTextAlignment(TextAlignment.RIGHT));
+
 
                 document.Add(new Paragraph($"Generated on {DateTime.Now:yyyy-MM-dd HH:mm}")
                     

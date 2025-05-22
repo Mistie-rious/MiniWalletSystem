@@ -201,6 +201,29 @@ public class AuthService : IAuthService
         };
     }
     
+    public async Task<ApplicationUser?> ValidateTokenAndGetUserAsync(string token)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var validationParameters = _tokenService.GetTokenValidationParameters();
+
+        try
+        {
+            var principal = handler.ValidateToken(token, validationParameters, out var validatedToken);
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return null;
+            }
+
+            return await _userManager.FindByIdAsync(userId);
+        }
+        catch (Exception)
+        {
+            return null; // Token is invalid or expired
+        }
+    }
+    
     private static string GenerateRandomPassphrase(int length = 32)
     {
         const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}<>?";

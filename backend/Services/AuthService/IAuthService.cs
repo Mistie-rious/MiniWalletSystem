@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using WalletBackend.Models;
 using WalletBackend.Models.DTOS;
 
 namespace WalletBackend.Services.AuthService;
@@ -10,4 +11,5 @@ public interface IAuthService
     
     Task<AuthResult> LoginAsync(LoginModel model);
     Task<UserDto> GetByIdAsync(string userId);
+    Task<ApplicationUser?> ValidateTokenAndGetUserAsync(string token);
 }
