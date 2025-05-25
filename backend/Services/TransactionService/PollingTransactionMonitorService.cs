@@ -10,8 +10,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Nethereum.JsonRpc.Client;
 using Nethereum.Web3;
-using Nethereum.JsonRpc.WebSocketStreamingClient;
-using Nethereum.RPC.Reactive.Eth.Subscriptions;
 using Nethereum.Hex.HexTypes;
 using Nethereum.RPC.Eth.DTOs;
 using WalletBackend.Data;
@@ -21,40 +19,41 @@ using WalletBackend.Services.Functions;
 using Microsoft.EntityFrameworkCore;
 using Transaction = WalletBackend.Models.Transaction;
 
-
 namespace WalletBackend.Services.TransactionService
 {
-    public class WebSocketTransactionMonitorService : BackgroundService
+    public class PollingTransactionMonitorService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly string _httpNodeUrl;
-        private readonly string _webSocketNodeUrl;
-        private readonly ILogger<WebSocketTransactionMonitorService> _logger;
+        private readonly ILogger<PollingTransactionMonitorService> _logger;
         private readonly Web3 _httpWeb3;
         private ulong _lastSyncedBlock;
-        private readonly ulong _maxCatchupBlocks = 200; // Maximum 200 blocks to scan
+        private readonly ulong _maxCatchupBlocks = 200;
         private readonly int _rpcTimeoutSeconds;
         private readonly int _maxRetries;
         private readonly int _retryDelaySeconds;
         private readonly int _batchSize;
+        private readonly int _pollingIntervalSeconds;
+        private readonly int _healthCheckIntervalMinutes;
+        private DateTime _lastHealthCheck = DateTime.UtcNow;
 
-        public WebSocketTransactionMonitorService(
+        public PollingTransactionMonitorService(
             IServiceScopeFactory scopeFactory,
             IConfiguration configuration,
-            ILogger<WebSocketTransactionMonitorService> logger)
+            ILogger<PollingTransactionMonitorService> logger)
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
 
             _httpNodeUrl = configuration["Ethereum:NodeUrl"]
                 ?? throw new ArgumentException("Ethereum:NodeUrl must be set");
-            _webSocketNodeUrl = configuration["Ethereum:WebSocketUrl"]
-                ?? throw new ArgumentException("Ethereum:WebSocketUrl must be set");
 
             _rpcTimeoutSeconds = configuration.GetValue<int>("Blockchain:RpcTimeoutSeconds", 30);
             _maxRetries = configuration.GetValue<int>("Blockchain:MaxRetries", 5);
             _retryDelaySeconds = configuration.GetValue<int>("Blockchain:RetryDelaySeconds", 3);
             _batchSize = configuration.GetValue<int>("Blockchain:BatchSize", 10);
+            _pollingIntervalSeconds = configuration.GetValue<int>("Blockchain:PollingIntervalSeconds", 12); // ~Ethereum block time
+            _healthCheckIntervalMinutes = configuration.GetValue<int>("Blockchain:HealthCheckIntervalMinutes", 5);
             
             var handler = new SocketsHttpHandler
             {
@@ -70,7 +69,7 @@ namespace WalletBackend.Services.TransactionService
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Starting WebSocketTransactionMonitorService...");
+            _logger.LogInformation("Starting PollingTransactionMonitorService with {Interval}s polling interval...", _pollingIntervalSeconds);
 
             try
             {
@@ -80,13 +79,155 @@ namespace WalletBackend.Services.TransactionService
                 // Step 2: Quick limited catchup (max 200 blocks)
                 await PerformLimitedCatchupAsync(stoppingToken);
                 
-                // Step 3: Start WebSocket monitoring
-                await SetupWebSocketSubscriptionsAsync(stoppingToken);
+                // Step 3: Start polling for new blocks
+                await StartPollingAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("PollingTransactionMonitorService stopped");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Critical error in WebSocketTransactionMonitorService");
+                _logger.LogError(ex, "Critical error in PollingTransactionMonitorService");
                 throw;
+            }
+        }
+
+        private async Task StartPollingAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Starting polling loop from block {Block}...", _lastSyncedBlock);
+            
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    // Periodic health check
+                    if (DateTime.UtcNow - _lastHealthCheck > TimeSpan.FromMinutes(_healthCheckIntervalMinutes))
+                    {
+                        await PerformHealthCheckAsync(cancellationToken);
+                        _lastHealthCheck = DateTime.UtcNow;
+                    }
+
+                    // Check for new blocks
+                    await CheckForNewBlocksAsync(cancellationToken);
+                    
+                    // Wait before next poll
+                    await Task.Delay(TimeSpan.FromSeconds(_pollingIntervalSeconds), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in polling loop, continuing...");
+                    
+                    // Back off on errors to avoid hammering the node
+                    await Task.Delay(TimeSpan.FromSeconds(_retryDelaySeconds * 2), cancellationToken);
+                }
+            }
+        }
+
+        private async Task CheckForNewBlocksAsync(CancellationToken cancellationToken)
+        {
+            var currentHead = await GetCurrentBlockNumberWithRetryAsync(cancellationToken);
+            if (currentHead == null)
+            {
+                _logger.LogWarning("Failed to get current block number");
+                return;
+            }
+
+            var headBlockNumber = (ulong)currentHead.Value;
+            
+            if (headBlockNumber <= _lastSyncedBlock)
+            {
+                _logger.LogDebug("No new blocks. Current: {Current}, Last synced: {Last}", headBlockNumber, _lastSyncedBlock);
+                return;
+            }
+
+            var startBlock = _lastSyncedBlock + 1;
+            var endBlock = headBlockNumber;
+            var blocksToProcess = endBlock - startBlock + 1;
+
+            // Limit how many blocks we process in one go to avoid overwhelming the system
+            var maxBlocksPerPoll = (ulong)Math.Max(_batchSize * 2, 20);
+            if (blocksToProcess > maxBlocksPerPoll)
+            {
+                endBlock = startBlock + maxBlocksPerPoll - 1;
+                blocksToProcess = maxBlocksPerPoll;
+                _logger.LogInformation("Limiting poll to {Max} blocks. Processing {Start} to {End}", maxBlocksPerPoll, startBlock, endBlock);
+            }
+
+            _logger.LogInformation("Processing {Count} new blocks from {Start} to {End}", blocksToProcess, startBlock, endBlock);
+
+            // Process blocks in batches
+            for (var batchStart = startBlock; batchStart <= endBlock; batchStart += (ulong)_batchSize)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                var batchEnd = Math.Min(batchStart + (ulong)_batchSize - 1, endBlock);
+                
+                _logger.LogDebug("Processing batch: blocks {BatchStart} to {BatchEnd}", batchStart, batchEnd);
+                
+                var batchTasks = new List<Task>();
+                for (var block = batchStart; block <= batchEnd; block++)
+                {
+                    batchTasks.Add(ProcessBlockWithExtraRetryAsync(block, cancellationToken));
+                }
+                
+                await Task.WhenAll(batchTasks);
+                
+                // Update _lastSyncedBlock to the highest processed block in this batch
+                _lastSyncedBlock = batchEnd;
+                
+                // Small delay between batches to be gentle on the RPC
+                if (batchEnd < endBlock)
+                {
+                    await Task.Delay(100, cancellationToken);
+                }
+            }
+
+            _logger.LogInformation("Completed processing up to block {Block}", _lastSyncedBlock);
+        }
+
+        private async Task<HexBigInteger?> GetCurrentBlockNumberWithRetryAsync(CancellationToken cancellationToken)
+        {
+            for (int attempt = 1; attempt <= _maxRetries; attempt++)
+            {
+                try
+                {
+                    return await _httpWeb3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+                }
+                catch (Exception ex) when (attempt < _maxRetries)
+                {
+                    _logger.LogWarning(ex, "Failed to get block number, attempt {Attempt}/{Max}", attempt, _maxRetries);
+                    await Task.Delay(TimeSpan.FromSeconds(_retryDelaySeconds * attempt), cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get block number after {Max} attempts", _maxRetries);
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        private async Task PerformHealthCheckAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var chainId = await _httpWeb3.Eth.ChainId.SendRequestAsync();
+                var blockNumber = await _httpWeb3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+                
+                _logger.LogDebug("Health check successful. Chain ID: {ChainId}, Block: {Block}", 
+                    chainId.Value, blockNumber.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Health check failed, connection may be unstable");
+                
+                // Optionally recreate the Web3 instance on health check failure
+                // This could help with connection issues but may not be necessary
             }
         }
 
@@ -95,7 +236,12 @@ namespace WalletBackend.Services.TransactionService
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
 
-            var currentHead = await _httpWeb3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+            var currentHead = await GetCurrentBlockNumberWithRetryAsync(cancellationToken);
+            if (currentHead == null)
+            {
+                throw new InvalidOperationException("Cannot get current block number for initialization");
+            }
+            
             var headBlockNumber = (ulong)currentHead.Value;
 
             var lastTx = await context.Transactions
@@ -122,7 +268,13 @@ namespace WalletBackend.Services.TransactionService
 
         private async Task PerformLimitedCatchupAsync(CancellationToken stoppingToken)
         {
-            var currentHead = await _httpWeb3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+            var currentHead = await GetCurrentBlockNumberWithRetryAsync(stoppingToken);
+            if (currentHead == null)
+            {
+                _logger.LogWarning("Cannot perform catchup - failed to get current block number");
+                return;
+            }
+            
             var headBlockNumber = (ulong)currentHead.Value;
             
             if (_lastSyncedBlock >= headBlockNumber)
@@ -175,127 +327,6 @@ namespace WalletBackend.Services.TransactionService
             }
 
             _logger.LogInformation("Limited catchup completed. Now monitoring from block {Block}", _lastSyncedBlock);
-        }
-
-        private async Task SetupWebSocketSubscriptionsAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogInformation("Setting up WebSocket subscriptions for real-time monitoring...");
-            
-            var wsClient = new StreamingWebSocketClient(_webSocketNodeUrl);
-            
-            // Start the WebSocket client FIRST
-            await wsClient.StartAsync();
-            _logger.LogInformation("WebSocket client started successfully");
-
-            var headSub = new EthNewBlockHeadersObservableSubscription(wsClient);
-            var logSub = new EthLogsObservableSubscription(wsClient);
-
-            try
-            {
-                // Set up block header subscription
-                headSub.GetSubscriptionDataResponsesAsObservable().Subscribe(
-                    async header =>
-                    {
-                        try
-                        {
-                            var blockNumber = (ulong)header.Number.Value;
-                            if (blockNumber > _lastSyncedBlock)
-                            {
-                                _logger.LogInformation("Processing new block {Block}", blockNumber);
-                                await ProcessBlockWithExtraRetryAsync(blockNumber, cancellationToken);
-                                _lastSyncedBlock = blockNumber;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error processing block header");
-                        }
-                    }, 
-                    ex => _logger.LogError(ex, "Head subscription error"));
-
-                // Subscribe to new block headers
-                await headSub.SubscribeAsync();
-                _logger.LogInformation("Block header subscription active");
-
-                // Set up log subscription for contract events
-                var walletAddresses = await LoadWalletAddressesAsync();
-                
-                if (walletAddresses.Any())
-                {
-                    logSub.GetSubscriptionDataResponsesAsObservable().Subscribe(
-                        async log =>
-                        {
-                            try
-                            {
-                                await SaveLogAsTransactionAsync(log);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Error processing log");
-                            }
-                        },
-                        ex => _logger.LogError(ex, "Log subscription error"));
-
-                    await logSub.SubscribeAsync(new NewFilterInput
-                    {
-                        FromBlock = BlockParameter.CreateLatest(),
-                        ToBlock = BlockParameter.CreateLatest(),
-                        Address = walletAddresses.ToArray()
-                    });
-                    
-                    _logger.LogInformation("Log subscription active for {Count} wallet addresses", walletAddresses.Count);
-                }
-                else
-                {
-                    _logger.LogWarning("No wallet addresses found, skipping log subscription");
-                }
-
-                _logger.LogInformation("WebSocket subscriptions active. Monitoring for new blocks...");
-
-                // Keep the service running until cancellation is requested
-                await Task.Delay(Timeout.Infinite, cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Cancellation requested, stopping subscriptions");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in WebSocket subscriptions");
-                throw;
-            }
-            finally
-            {
-                try
-                {
-                    await headSub.UnsubscribeAsync();
-                    _logger.LogDebug("Head subscription unsubscribed");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error unsubscribing from head subscription");
-                }
-
-                try
-                {
-                    await logSub.UnsubscribeAsync();
-                    _logger.LogDebug("Log subscription unsubscribed");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error unsubscribing from log subscription");
-                }
-
-                try
-                {
-                    await wsClient.StopAsync();
-                    _logger.LogDebug("WebSocket client stopped");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error stopping WebSocket client");
-                }
-            }
         }
 
         private async Task ProcessBlockWithExtraRetryAsync(ulong blockNumber, CancellationToken cancellationToken)
@@ -396,7 +427,7 @@ namespace WalletBackend.Services.TransactionService
                     }
                 }
 
-                // Process receiver if it's in our wallets (CREDIT) - This ensures credit transactions are recorded
+                // Process receiver if it's in our wallets (CREDIT)
                 if (to != null && walletMap.ContainsKey(to))
                 {
                     var wallet = walletMap[to];
@@ -460,7 +491,7 @@ namespace WalletBackend.Services.TransactionService
                     }
                 }
 
-                // Handle receiver (credit) - This ensures credit balances are updated
+                // Handle receiver (credit)
                 if (!string.IsNullOrEmpty(tx.ReceiverAddress))
                 {
                     var receiver = wallets.FirstOrDefault(w => w.Address.Equals(tx.ReceiverAddress, StringComparison.OrdinalIgnoreCase));
@@ -497,19 +528,6 @@ namespace WalletBackend.Services.TransactionService
                 bal.Balance = Math.Max(0, bal.Balance + change);
                 bal.UpdatedAt = DateTime.UtcNow;
             }
-        }
-
-        private async Task<List<string>> LoadWalletAddressesAsync()
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<WalletContext>();
-            return await context.Wallets.Select(w => w.Address.ToLowerInvariant()).ToListAsync();
-        }
-
-        private async Task SaveLogAsTransactionAsync(FilterLog log)
-        {
-            // Placeholder for future implementation to handle ERC20 or contract event logs
-            _logger.LogDebug("Received log for block {Block}, tx {TxHash}", log.BlockNumber?.Value, log.TransactionHash);
         }
     }
 }

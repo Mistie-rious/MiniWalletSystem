@@ -1,7 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using WalletBackend.Models;
 using WalletBackend.Models.DTOS;
 using WalletBackend.Models.Responses;
@@ -166,6 +171,13 @@ public class AuthController: ControllerBase
           }
 
           return Unauthorized(new { message = "Invalid token" });
+     }
+
+
+     [HttpPost("check")]
+     public async Task<IActionResult> Check()
+     {
+          return Ok(new { message = "Program is running" });
      }
      
      

@@ -1,3 +1,5 @@
+using System;
+
 namespace WalletBackend.Models.Responses;
 
 public class TransactionResult

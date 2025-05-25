@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "/7G96aDZO7M=",
+  "dgSpecHash": "or+s+XeSWrA=",
   "success": true,
   "projectFilePath": "/home/mistie/Documents/projects/zone wallet/backend/WalletBackend.csproj",
   "expectedPackageFiles": [
@@ -144,6 +144,7 @@
     "/home/mistie/.nuget/packages/runtime.ubuntu.14.04-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.ubuntu.14.04-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
     "/home/mistie/.nuget/packages/runtime.ubuntu.16.04-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.ubuntu.16.04-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
     "/home/mistie/.nuget/packages/runtime.ubuntu.16.10-x64.runtime.native.system.security.cryptography.openssl/4.3.2/runtime.ubuntu.16.10-x64.runtime.native.system.security.cryptography.openssl.4.3.2.nupkg.sha512",
+    "/home/mistie/.nuget/packages/scrutor/6.0.1/scrutor.6.0.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/serilog/4.2.0/serilog.4.2.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/serilog.enrichers.environment/3.0.1/serilog.enrichers.environment.3.0.1.nupkg.sha512",
     "/home/mistie/.nuget/packages/serilog.enrichers.thread/4.0.0/serilog.enrichers.thread.4.0.0.nupkg.sha512",
@@ -247,6 +248,13 @@
     "/home/mistie/.nuget/packages/system.windows.extensions/6.0.0/system.windows.extensions.6.0.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/system.xml.readerwriter/4.3.0/system.xml.readerwriter.4.3.0.nupkg.sha512",
     "/home/mistie/.nuget/packages/system.xml.xmldocument/4.3.0/system.xml.xmldocument.4.3.0.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit/2.9.3/xunit.2.9.3.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit.abstractions/2.0.3/xunit.abstractions.2.0.3.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit.analyzers/1.18.0/xunit.analyzers.1.18.0.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit.assert/2.9.3/xunit.assert.2.9.3.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit.core/2.9.3/xunit.core.2.9.3.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit.extensibility.core/2.9.3/xunit.extensibility.core.2.9.3.nupkg.sha512",
+    "/home/mistie/.nuget/packages/xunit.extensibility.execution/2.9.3/xunit.extensibility.execution.2.9.3.nupkg.sha512",
     "/home/mistie/.nuget/packages/zspitz.util/0.1.113/zspitz.util.0.1.113.nupkg.sha512"
   ],
   "logs": [

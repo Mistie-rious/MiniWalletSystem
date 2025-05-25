@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using WalletBackend.Models.DTOS.Transaction;
 using WalletBackend.Models.Enums;
 using WalletBackend.Models.Responses;
@@ -12,7 +15,7 @@ public interface ITransactionService
     Task<DeleteTransactionModel> DeleteTransactionAsync(int transactionId);
     Task<ViewTransactionModel?> ViewTransactionAsync(int transactionId);
     
-    Task UpdateTransactionConfirmationsAsync();
+    
 
     Task<IEnumerable<ViewTransactionModel>> SearchTransactionsAsync(
         Guid? walletId = null,
@@ -25,7 +28,6 @@ public interface ITransactionService
 
 
     Task<TransactionResult> SendCurrencyAsync(CurrencyTransactionRequest request);
-    Task<decimal> GetCurrencyBalance(Guid walletId, CurrencyType currency);
     Task<TransactionResult> SendEthereumAsync(CurrencyTransactionRequest request);
 
     Task<IEnumerable<ViewTransactionModel>> GetTransactionsByUserIdAsync(string userId);
@@ -38,4 +40,12 @@ public interface ITransactionService
         decimal? maxAmount = null,
         string? transactionHash = null,
         TransactionStatus? status = null);
+
+    Task<int> UpdateTransactionConfirmationsAsync();
+
+    Task UpdateCurrencyBalancesBulkAsync(
+        IEnumerable<(Guid WalletId, CurrencyType Currency, decimal Amount)> updates);
+
+    Task<int> UpdateTransactionConfirmationsBatchAsync();
+    Task<decimal> GetCurrencyBalance(Guid walletId, CurrencyType currency);
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -33,10 +35,18 @@ public class WalletContext: IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<Transaction>()
             .Property(t => t.Status)
             .HasConversion<string>();
-        
-        modelBuilder.Entity<Transaction>()
-            .Property(t => t.Type)
-            .HasConversion<string>();
+        modelBuilder.Entity<Transaction>(entity =>
+        {
+            entity.Property(t => t.Type)
+                .HasConversion<string>();  // Type stored as string
+
+            entity.Property(e => e.Status)
+                .HasConversion<int>();    // Status stored as int
+
+            entity.Property(e => e.Currency)
+                .HasConversion<int>();    // Currency stored as int
+        });
+
 
             
 

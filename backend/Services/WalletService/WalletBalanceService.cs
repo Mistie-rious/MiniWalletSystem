@@ -1,6 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Nethereum.Web3;
 using WalletBackend.Data;
+using WalletBackend.Models;
 
 namespace WalletBackend.Services.WalletService;
 
@@ -15,7 +24,7 @@ public class WalletBalanceService : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _nodeUrl = configuration["Ethereum:NodeUrl"];
-        _updateInterval = TimeSpan.FromSeconds(30);
+        _updateInterval = TimeSpan.FromMinutes(2); // More reasonable for wallet balances
         _logger = logger;
     }
 
@@ -31,15 +40,12 @@ public class WalletBalanceService : BackgroundService
                     var web3 = new Web3(_nodeUrl);
                     
                     var wallets = await context.Wallets.ToListAsync(stoppingToken);
-                    var walletLookup = wallets.ToDictionary(w => w.Address.ToLower(), w => w);
-
-                    _logger.LogDebug("Loaded {Count} wallets from DB:", walletLookup.Count);
-                    foreach (var addr in walletLookup.Keys)
-                        _logger.LogDebug(" – DB addr: '{Address}' (len={Len})", addr, addr.Length);
-
-                    var updatedWallets = new List<object>();
                     
-                    // Process wallets one by one instead of all at once to avoid overwhelming the RPC
+                    _logger.LogDebug("Processing {Count} wallets for balance updates", wallets.Count);
+
+                    var updatedWallets = new List<Wallet>(); // Use proper type instead of object
+                    
+                    // Process wallets one by one
                     foreach (var wallet in wallets)
                     {
                         try
@@ -49,11 +55,24 @@ public class WalletBalanceService : BackgroundService
                             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, timeoutCts.Token);
                             
                             var balanceWei = await web3.Eth.GetBalance.SendRequestAsync(wallet.Address);
-                            var balanceEth = (decimal)Web3.Convert.FromWei(balanceWei);
+                            var balanceEth = Web3.Convert.FromWei(balanceWei);
                             
-                            if (Math.Abs(wallet.Balance - balanceEth) > 0.00000001m)
+                            // Convert to decimal for comparison - use more precise conversion
+                            var newBalance = (decimal)balanceEth;
+                            
+                            // More robust comparison - check if difference is significant
+                            var balanceDifference = Math.Abs(wallet.Balance - newBalance);
+                            var significantChange = balanceDifference > 0.000001m; // Increased threshold
+                            
+                            _logger.LogTrace("Wallet {Address}: Current={Current}, New={New}, Diff={Diff}, Update={ShouldUpdate}", 
+                                wallet.Address, wallet.Balance, newBalance, balanceDifference, significantChange);
+                            
+                            if (significantChange)
                             {
-                                wallet.Balance = balanceEth;
+                                _logger.LogDebug("Balance changed for {Address}: {Old} -> {New}", 
+                                    wallet.Address, wallet.Balance, newBalance);
+                                    
+                                wallet.Balance = newBalance;
                                 wallet.UpdatedAt = DateTime.UtcNow;
                                 updatedWallets.Add(wallet);
                             }
@@ -75,7 +94,12 @@ public class WalletBalanceService : BackgroundService
                     {
                         context.UpdateRange(updatedWallets);
                         await context.SaveChangesAsync(stoppingToken);
-                        _logger.LogInformation("Updated {Count} wallet balances", updatedWallets.Count);
+                        _logger.LogInformation("Updated {Count} wallet balances out of {Total} total wallets", 
+                            updatedWallets.Count, wallets.Count);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("No wallet balance changes detected");
                     }
                 }
             }

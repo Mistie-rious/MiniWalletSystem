@@ -1,9 +1,0 @@
-/home/mistie/Documents/projects/zone wallet/out/WalletBackend
-/home/mistie/Documents/projects/zone wallet/out/appsettings.Development.json
-/home/mistie/Documents/projects/zone wallet/out/appsettings.json
-/home/mistie/Documents/projects/zone wallet/out/WalletBackend.dll
-/home/mistie/Documents/projects/zone wallet/out/WalletBackend.deps.json
-/home/mistie/Documents/projects/zone wallet/out/WalletBackend.runtimeconfig.json
-/home/mistie/Documents/projects/zone wallet/out/WalletBackend.pdb
-/home/mistie/Documents/projects/zone wallet/out/Microsoft.AspNetCore.OpenApi.dll
-/home/mistie/Documents/projects/zone wallet/out/Microsoft.OpenApi.dll

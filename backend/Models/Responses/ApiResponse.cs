@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace WalletBackend.Models.Responses;
 
 public class ApiResponse<T>

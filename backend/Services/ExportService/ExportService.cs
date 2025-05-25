@@ -1,5 +1,9 @@
+using System;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Azure.Core;
 using CsvHelper;
 
@@ -12,7 +16,7 @@ using iText.Layout;
 using iText.Layout.Element;
 using iText.Layout.Properties;
 using Microsoft.EntityFrameworkCore;
-
+using Microsoft.Extensions.Logging;
 using WalletBackend.Data;
 using WalletBackend.Models;
 using WalletBackend.Models.Enums;
@@ -254,7 +258,7 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                
                 AddHeaderCell(table, "Incoming (N)",      headerStyle);
                 AddHeaderCell(table, "Outgoing (N)",     headerStyle);
-                AddHeaderCell(table, "Asset",       headerStyle);
+                AddHeaderCell(table, "Asset (ETH)",       headerStyle);
                 AddHeaderCell(table, "Status",      headerStyle);
                 AddHeaderCell(table, "Type",        headerStyle);
                 AddHeaderCell(table, "Date",        headerStyle);

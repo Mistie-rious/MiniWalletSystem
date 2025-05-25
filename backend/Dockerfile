@@ -1,13 +1,21 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+# Use .NET SDK image for development
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+
+# Set working directory
 WORKDIR /app
 
-COPY . .
+# Copy only project files first (for better caching)
+COPY *.csproj ./
+COPY *.sln ./
+
+# Restore dependencies first
 RUN dotnet restore
-RUN dotnet publish -c Release -o out
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
-WORKDIR /app
-COPY --from=build /app/out .
-EXPOSE 5000
+# Copy the rest of the application
+COPY . .
 
-CMD ["dotnet", "WalletBackend.dll"]
+# Expose port
+EXPOSE 5275
+
+# Default command
+CMD ["dotnet", "watch", "run", "--urls=http://0.0.0.0:5275"]

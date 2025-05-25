@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using AutoMapper;
 using CsvHelper;
 using iText.IO.Font.Constants;
@@ -10,6 +14,8 @@ using iText.Layout;
 using iText.Layout.Element;
 using iText.Layout.Properties;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Nethereum.Web3;
 using WalletBackend.Data;
 using WalletBackend.Models;
@@ -162,11 +168,13 @@ namespace WalletBackend.Services.TransactionService;
         
 
 
-        public async Task UpdateTransactionConfirmationsAsync()
+        public async Task<int> UpdateTransactionConfirmationsAsync()
         {
             var pendingTransactions = await _context.Transactions
                 .Where(t => t.Status == TransactionStatus.Pending && t.BlockNumber != null)
                 .ToListAsync();
+
+            int updatedCount = 0;
 
             if (pendingTransactions.Any())
             {
@@ -181,15 +189,20 @@ namespace WalletBackend.Services.TransactionService;
                         int confirmations = currentBlockNumber - txBlockNumber + 1;
                         if (confirmations >= 12)
                         {
-                            tx.Status = TransactionStatus.Successful;
+                            tx.Status    = TransactionStatus.Successful;
                             tx.UpdatedAt = DateTime.UtcNow;
+                            updatedCount++;
                         }
                     }
                 }
 
-                await _context.SaveChangesAsync();
+                if (updatedCount > 0)
+                    await _context.SaveChangesAsync();
             }
+
+            return updatedCount;
         }
+
 
         public async Task<UpdateTransactionModel> UpdateTransactionAsync(UpdateTransactionModel model)
         {
@@ -467,6 +480,115 @@ namespace WalletBackend.Services.TransactionService;
             walletBalance.Balance += amount;
             walletBalance.UpdatedAt = DateTime.UtcNow;
         }
+        
+        public async Task UpdateCurrencyBalancesBulkAsync(
+            IEnumerable<(Guid WalletId, CurrencyType Currency, decimal Amount)> updates)
+        {
+            var walletIds = updates.Select(u => u.WalletId).Distinct().ToList();
+            var currencies = updates.Select(u => u.Currency).Distinct().ToList();
+    
+            var existingBalances = await _context.WalletBalances
+                .Where(wb => walletIds.Contains(wb.WalletId) && currencies.Contains(wb.Currency))
+                .ToListAsync();
+    
+            var balanceDict = existingBalances
+                .ToDictionary(wb => new { wb.WalletId, wb.Currency }, wb => wb);
+    
+            var newBalances = new List<WalletBalance>();
+    
+            foreach (var (walletId, currency, amount) in updates)
+            {
+                var key = new { WalletId = walletId, Currency = currency };
+        
+                if (balanceDict.TryGetValue(key, out var balance))
+                {
+                    balance.Balance += amount;
+                    balance.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    newBalances.Add(new WalletBalance
+                    {
+                        WalletId = walletId,
+                        Currency = currency,
+                        Balance = amount,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+    
+            if (newBalances.Any())
+                _context.WalletBalances.AddRange(newBalances);
+    
+            await _context.SaveChangesAsync();
+        }
+        
+        public async Task<int> UpdateTransactionConfirmationsBatchAsync()
+        {
+            const int batchSize = 100;
+            var totalUpdated = 0;
+    
+            while (true)
+            {
+                var batch = await _context.Transactions
+                    .Where(t => t.Status == TransactionStatus.Pending && t.BlockNumber != null)
+                    .Take(batchSize)
+                    .ToListAsync();
+            
+                if (!batch.Any()) break;
+        
+                var web3 = new Web3(_nodeUrl);
+                var currentBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+                var currentBlockNumber = (int)currentBlock.Value;
+        
+                var updated = 0;
+                foreach (var tx in batch)
+                {
+                    if (int.TryParse(tx.BlockNumber, out int txBlockNumber))
+                    {
+                        int confirmations = currentBlockNumber - txBlockNumber + 1;
+                        if (confirmations >= 12)
+                        {
+                            tx.Status = TransactionStatus.Successful;
+                            tx.UpdatedAt = DateTime.UtcNow;
+                            updated++;
+                        }
+                    }
+                }
+        
+                if (updated > 0)
+                {
+                    await _context.SaveChangesAsync();
+                    totalUpdated += updated;
+                }
+        
+                if (batch.Count < batchSize) break;
+            }
+    
+            return totalUpdated;
+        }
+        
+        private static readonly Func<WalletContext, Guid?, DateTime?, DateTime?, decimal?, decimal?, 
+                string, TransactionStatus?, int, int, IAsyncEnumerable<Transaction>> 
+            CompiledSearchQuery = EF.CompileAsyncQuery(
+                (WalletContext context, Guid? walletId, DateTime? startDate, DateTime? endDate, 
+                        decimal? minAmount, decimal? maxAmount, string transactionHash, 
+                        TransactionStatus? status, int skip, int take) =>
+                    context.Transactions
+                        .Where(t => !walletId.HasValue || t.WalletId == walletId.Value)
+                        .Where(t => !startDate.HasValue || t.CreatedAt >= startDate.Value)
+                        .Where(t => !endDate.HasValue || t.CreatedAt <= endDate.Value.Date.AddDays(1).AddSeconds(-1))
+                        .Where(t => !minAmount.HasValue || t.Amount >= minAmount.Value)
+                        .Where(t => !maxAmount.HasValue || t.Amount <= maxAmount.Value)
+                        .Where(t => string.IsNullOrEmpty(transactionHash) || 
+                                    t.TransactionHash.Contains(transactionHash) ||
+                                    t.BlockchainReference.Contains(transactionHash))
+                        .Where(t => !status.HasValue || t.Status == status.Value)
+                        .OrderByDescending(t => t.CreatedAt)
+                        .Skip(skip)
+                        .Take(take));
+
         
         
         

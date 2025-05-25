@@ -332,9 +332,8 @@ namespace WalletBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("datetime2");
@@ -409,9 +408,6 @@ namespace WalletBackend.Migrations
 
                     b.Property<int>("Currency")
                         .HasColumnType("int");
-
-                    b.Property<string>("CurrencyAddress")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");

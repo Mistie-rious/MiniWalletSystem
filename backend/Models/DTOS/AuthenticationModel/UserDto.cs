@@ -1,3 +1,5 @@
+using System;
+
 namespace WalletBackend.Models.DTOS;
 
 public class UserDto
