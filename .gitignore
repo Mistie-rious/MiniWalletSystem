@@ -1,0 +1,5 @@
+.env
+.dll
+backend/obj/*
+backend/bin/*
+
