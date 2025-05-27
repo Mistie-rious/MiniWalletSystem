@@ -101,25 +101,24 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
 
                 return new
                 {
-                    IncomingAmount   = incoming,
-                    IncomingNaira    = inNaira,
-                    OutgoingAmount   = outgoing,
-                    OutgoingNaira    = outNaira,
+                    IncomingAmount_ETH = incoming,
+                    IncomingNaira      = inNaira,
+                    OutgoingAmount_ETH = outgoing,
+                    OutgoingNaira      = outNaira,
                     t.Status,
                     t.Type,
-                    CreatedAt        = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                    Description      = t.Description ?? string.Empty,
+                    CreatedAt          = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                    Description        = t.Description ?? string.Empty,
                 };
             });
-
-
 
             // Write headers first to ensure they're always included
             csv.WriteHeader<dynamic>();
             csv.NextRecord();
             
-            
             csv.WriteRecords(records);
+            
+            // Calculate totals
             var totalIn  = transactions
                 .Where(t => t.Type == TransactionType.Credit)
                 .Sum(t => t.Amount);
@@ -130,16 +129,29 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
             var totalInN  = (totalIn  * ethToNairaRate).ToString("C2", ngCulture);
             var totalOutN = (totalOut * ethToNairaRate).ToString("C2", ngCulture);
 
-
+            // Add empty row for separation
             csv.NextRecord();
-            csv.WriteField("Total Credit");
-            csv.WriteField(totalIn.ToString("F6"));
-            csv.WriteField(totalInN);
-            csv.WriteField("Total Debit");
-            csv.WriteField(totalOut.ToString("F6"));
-            csv.WriteField(totalOutN);
+            
+            // Totals header row
+            csv.WriteField("TOTALS");
+            csv.WriteField("");
+            csv.WriteField("");
+            csv.WriteField("");
+            csv.WriteField("");
+            csv.WriteField("");
+            csv.WriteField("");
+            csv.WriteField("");
             csv.NextRecord();
-
+            
+            // Totals values row - vertically aligned under respective columns
+            csv.WriteField(totalIn.ToString("F6"));    // Under IncomingAmount_ETH
+            csv.WriteField(totalInN);                  // Under IncomingNaira
+            csv.WriteField(totalOut.ToString("F6"));   // Under OutgoingAmount_ETH
+            csv.WriteField(totalOutN);                 // Under OutgoingNaira
+            csv.WriteField("");  // Status
+            csv.WriteField("");  // Type
+            csv.WriteField("");  // CreatedAt
+            csv.NextRecord();
 
             await writer.FlushAsync();
             memoryStream.Position = 0; // Reset position to read from start
@@ -235,7 +247,7 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 
 
                 var table = new Table(UnitValue.CreatePercentArray(
-                        new float[] { 10, 10, 10, 12, 12, 19, 21 }))
+                        new float[] { 10, 10, 9,9, 8, 8, 19, 21 }))
                     .UseAllAvailableWidth();
                 
                 // Define styles
@@ -258,7 +270,8 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                
                 AddHeaderCell(table, "Incoming (N)",      headerStyle);
                 AddHeaderCell(table, "Outgoing (N)",     headerStyle);
-                AddHeaderCell(table, "Asset (ETH)",       headerStyle);
+                AddHeaderCell(table, "Incoming (ETH)",     headerStyle);
+                AddHeaderCell(table, "Outgoing (ETH)",     headerStyle);
                 AddHeaderCell(table, "Status",      headerStyle);
                 AddHeaderCell(table, "Type",        headerStyle);
                 AddHeaderCell(table, "Date",        headerStyle);
@@ -267,8 +280,8 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 // Add transaction rows with alternating colors
                 const decimal ethToNairaRate = 4_500_000;
                 var ngCulture = CultureInfo.CreateSpecificCulture("en-NG");
-                  
-                    
+                
+                decimal totalEth = transactions.Sum(t => t.Amount);
                 decimal totalNaira = transactions.Sum(t => t.Amount * ethToNairaRate);
                 string totalNairaFormatted = totalNaira.ToString("C2", ngCulture);
                 bool isAlternateRow = false;
@@ -284,7 +297,10 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
 
                     AddCell(table, inN,       rowStyle);
                     AddCell(table, outN,      rowStyle);
-                    AddCell(table, tx.Currency.ToString(), rowStyle);
+                    AddCell(table, incoming.ToString("C2", ngCulture),      rowStyle);
+                    AddCell(table, outgoing.ToString("C2", ngCulture),      rowStyle);
+                    
+             
                     AddCell(table, tx.Status.ToString(),   rowStyle);
                     AddCell(table, tx.Type.ToString(),     rowStyle);
                     AddCell(table, tx.CreatedAt.ToString("dddd, MMMM dd, yyyy h:mm tt"), rowStyle);
@@ -309,7 +325,13 @@ public async Task<string> ExportTransactionsToCsvAsync(Guid walletId, DateTime? 
                 var totalOutN = (totalOut * ethToNairaRate).ToString("C2", ngCulture);
 
                 document.Add(new Paragraph(
-                        $"Total Credit (₦): {totalInN}    Total Debit (₦): {totalOutN}")
+                        $"Total Credit (ETH): {totalIn.ToString("C2", ngCulture)}    Total Debit (ETH): {totalOut.ToString("C2", ngCulture)}")
+                    .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))
+                    .SetFontSize(10)
+                    .SetTextAlignment(TextAlignment.RIGHT));
+                
+                document.Add(new Paragraph(
+                        $"Total Credit (N): {totalInN}    Total Debit (N): {totalOutN}")
                     .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD))
                     .SetFontSize(10)
                     .SetTextAlignment(TextAlignment.RIGHT));

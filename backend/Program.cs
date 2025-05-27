@@ -43,7 +43,7 @@ builder.Services.Configure<JwtSettings>(
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
-        policy => policy.WithOrigins("http://localhost:3000")
+        policy => policy.WithOrigins("http://localhost:3000", "http://localhost:3001" )
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -55,10 +55,11 @@ builder.Services.AddDbContext<WalletContext>(options =>
     options.UseSqlServer(connectionString, sqlOptions =>
     {
         sqlOptions.CommandTimeout(30);
-        sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
-            errorNumbersToAdd: null);
+        // Remove or comment out the retry configuration
+        // sqlOptions.EnableRetryOnFailure(
+        //     maxRetryCount: 3,
+        //     maxRetryDelay: TimeSpan.FromSeconds(5),
+        //     errorNumbersToAdd: null);
     });
 }, ServiceLifetime.Scoped);
 
@@ -110,8 +111,9 @@ builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddScoped<IWalletUnlockService, WalletUnlockService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 // builder.Services.AddSingleton<WebSocketTransactionMonitorService>();
-builder.Services.AddHostedService<PollingTransactionMonitorService>();
+// builder.Services.AddHostedService<PollingTransactionMonitorService>();
 // builder.Services.AddHostedService(provider => provider.GetRequiredService<WebSocketTransactionMonitorService>());
+builder.Services.AddHttpClient<WalletBalanceService>();
 builder.Services.AddHostedService<WalletBalanceService>();
 builder.Services.AddHostedService<TransactionConfirmationService>();
 

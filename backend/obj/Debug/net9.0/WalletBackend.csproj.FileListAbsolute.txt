@@ -283,3 +283,5 @@
 /home/mistie/Documents/projects/zone wallet/backend/obj/Debug/net9.0/ref/WalletBackend.dll
 /home/mistie/Documents/projects/zone wallet/backend/obj/Debug/net9.0/WalletBackend.AssemblyInfoInputs.cache
 /home/mistie/Documents/projects/zone wallet/backend/obj/Debug/net9.0/WalletBackend.AssemblyInfo.cs
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/Tests/obj/project.assets.json
+/home/mistie/Documents/projects/zone wallet/backend/bin/Debug/net9.0/Tests/obj/WalletBackend.Tests.csproj.nuget.dgspec.json

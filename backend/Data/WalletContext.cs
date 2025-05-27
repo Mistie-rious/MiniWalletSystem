@@ -22,6 +22,9 @@ public class WalletContext: IdentityDbContext<ApplicationUser>
     
     public DbSet<WalletBalance> WalletBalances { get; set; }
     public DbSet<CurrencyConfig> CurrencyConfigs { get; set; }
+    public DbSet<PendingTransactionHash> PendingTransactionHashes { get; set; }
+    public DbSet<WalletScanProgress> WalletScanProgress { get; set; }
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -49,6 +52,22 @@ public class WalletContext: IdentityDbContext<ApplicationUser>
 
 
             
+        modelBuilder.Entity<PendingTransactionHash>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TransactionHash).IsRequired().HasMaxLength(66);
+            entity.Property(e => e.WalletAddress).IsRequired().HasMaxLength(42);
+            entity.HasIndex(e => e.TransactionHash).IsUnique();
+            entity.HasIndex(e => new { e.WalletAddress, e.IsProcessed });
+        });
+
+        // Configure WalletScanProgress
+        modelBuilder.Entity<WalletScanProgress>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.WalletAddress).IsRequired().HasMaxLength(42);
+            entity.HasIndex(e => e.WalletAddress).IsUnique();
+        });
 
         modelBuilder.Entity<ApplicationUser>()
             .Property(t => t.Role)
