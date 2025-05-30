@@ -36,8 +36,8 @@ public class WalletBalanceService : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _httpClient = httpClient;
-        _etherscanApiKey = configuration["Etherscan:ApiKey"];
-        _etherscanBaseUrl = configuration.GetValue<string>("Etherscan:BaseUrl", "https://api.etherscan.io/api");
+        _etherscanApiKey = Environment.GetEnvironmentVariable("EtherKey");
+        _etherscanBaseUrl = configuration.GetValue<string>("Etherscan:BaseUrl", "https://api-sepolia.etherscan.io/api");
         _updateInterval = TimeSpan.FromMinutes(2);
         _requestDelayMs = configuration.GetValue<int>("Etherscan:RequestDelayMs", 200);
         _logger = logger;
@@ -282,6 +282,10 @@ public class WalletBalanceService : BackgroundService
 
     private async Task<decimal> GetWalletBalanceAsync(string address, CancellationToken cancellationToken)
     {
+        Console.WriteLine("Etherscan API Key: " + _etherscanApiKey);
+        Console.WriteLine("Etherscan API Key: " + _etherscanBaseUrl);
+
+
         var url = $"{_etherscanBaseUrl}?module=account&action=balance&address={address}&tag=latest&apikey={_etherscanApiKey}";
         _logger.LogTrace("Getting balance for address: {Address}", address);
         

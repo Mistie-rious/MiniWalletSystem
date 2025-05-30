@@ -5,36 +5,28 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Nethereum.KeyStore;
 using WalletBackend.Data;
+using WalletBackend.Services.WalletService;
 
-namespace WalletBackend.Services.WalletService;
 
 public class WalletUnlockService : IWalletUnlockService
 {
     private readonly WalletContext _context;
     private readonly IMemoryCache _cache;
-    private readonly IWalletService _walletService;
     private readonly ILogger<WalletUnlockService> _logger;
 
-    public WalletUnlockService(
-    WalletContext context,
-    IMemoryCache cache,
-        IWalletService   walletService,   ILogger<WalletUnlockService> logger)
+    public WalletUnlockService(WalletContext context, IMemoryCache cache, ILogger<WalletUnlockService> logger)
     {
         _context = context;
-        _cache         = cache;
-        _walletService = walletService;
+        _cache = cache;
         _logger = logger;
     }
 
     public async Task UnlockAsync(Guid walletId, string password)
     {
-        // 1) Load wallet
         var wallet = await _context.Wallets.FindAsync(walletId);
         if (wallet == null)
             throw new KeyNotFoundException("Wallet not found");
 
-        // 2) Decrypt keystore
-        _logger.LogInformation("Unlocking wallet {password}", password);
         byte[] pkBytes;
         try
         {
@@ -46,31 +38,38 @@ public class WalletUnlockService : IWalletUnlockService
             throw new UnauthorizedAccessException("Invalid password");
         }
 
-        // 3) Cache for 30 minutes
         string privateKeyHex = ByteArrayToHex(pkBytes);
-
-        // 4) Zero out the byte array for safety
         Array.Clear(pkBytes, 0, pkBytes.Length);
 
-        // 4) Cache the hex string for 30 minutes
         var cacheKey = GetCacheKey(walletId);
-        _cache.Set(cacheKey, privateKeyHex, new MemoryCacheEntryOptions {
+        _cache.Set(cacheKey, privateKeyHex, new MemoryCacheEntryOptions
+        {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30)
         });
+
+        _logger.LogInformation("Wallet {walletId} unlocked", walletId);
     }
 
+    public bool IsUnlocked(Guid walletId)
+    {
+        return _cache.TryGetValue(GetCacheKey(walletId), out _);
+    }
+
+    public void Lock(Guid walletId)
+    {
+        _cache.Remove(GetCacheKey(walletId));
+        _logger.LogInformation("Wallet {walletId} locked", walletId);
+    }
 
     public bool TryGetPrivateKey(Guid walletId, out string privateKey)
     {
         return _cache.TryGetValue(GetCacheKey(walletId), out privateKey);
     }
 
-    private static string GetCacheKey(Guid walletId) 
-        => $"PrivKey:{walletId}";
-    
+    private static string GetCacheKey(Guid walletId) => $"PrivKey:{walletId}";
+
     private static string ByteArrayToHex(byte[] bytes)
     {
-        // BitConverter produces uppercase hex with dashes: "AA-BB-CC", so strip dashes & lowercase
         var hex = BitConverter.ToString(bytes).Replace("-", "");
         return hex.ToLowerInvariant();
     }

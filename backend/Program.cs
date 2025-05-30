@@ -39,6 +39,30 @@ builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings")
 );
 
+builder.Services.Configure<EtherscanOptions>(options =>
+{
+    builder.Configuration.GetSection("Etherscan").Bind(options);
+    var apiKey = Environment.GetEnvironmentVariable("EtherKey");
+    if (!string.IsNullOrEmpty(apiKey))
+    {
+        options.ApiKey = apiKey;
+    }
+});
+
+builder.Services.Configure<EthereumOptions>(options =>
+{
+    builder.Configuration.GetSection("Ethereum").Bind(options);
+
+    var ethKey = Environment.GetEnvironmentVariable("EthereumKey");
+    if (!string.IsNullOrWhiteSpace(ethKey))
+    {
+        options.NodeUrl = $"https://eth-sepolia.g.alchemy.com/v2/{ethKey}";
+        options.WebSocketUrl = $"wss://eth-sepolia.g.alchemy.com/v2/{ethKey}";
+    }
+});
+
+
+
 // Enable CORS for your React frontend
 builder.Services.AddCors(options =>
 {
@@ -100,6 +124,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
+
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, NoOpEmailSender<ApplicationUser>>();
 
 // Custom services
@@ -115,6 +140,7 @@ builder.Services.AddScoped<IExportService, ExportService>();
 // builder.Services.AddHostedService(provider => provider.GetRequiredService<WebSocketTransactionMonitorService>());
 builder.Services.AddHttpClient<WalletBalanceService>();
 builder.Services.AddHostedService<WalletBalanceService>();
+
 builder.Services.AddHostedService<TransactionConfirmationService>();
 
 var app = builder.Build();

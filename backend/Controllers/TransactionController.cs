@@ -155,6 +155,13 @@ public class TransactionController: ControllerBase
         }
     }
     
+    
+    [HttpGet("status/{walletId}")]
+    public IActionResult GetStatus(Guid walletId)
+    {
+        return Ok(new { unlocked = _walletUnlockService.IsUnlocked(walletId) });
+    }
+
     [HttpGet("user/{userId}")]
     public async Task<IActionResult> GetByUserId(string userId)
     {

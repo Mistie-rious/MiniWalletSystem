@@ -16,6 +16,8 @@ using iText.Layout.Properties;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Nethereum.JsonRpc.Client;
+using Nethereum.Model;
 using Nethereum.Web3;
 using WalletBackend.Data;
 using WalletBackend.Models;
@@ -23,6 +25,7 @@ using WalletBackend.Services.WalletService;
 using WalletBackend.Models.DTOS.Transaction;
 using WalletBackend.Models.Enums;
 using WalletBackend.Models.Responses;
+using TransactionType = WalletBackend.Models.Enums.TransactionType;
 
 namespace WalletBackend.Services.TransactionService;
 
@@ -34,15 +37,18 @@ namespace WalletBackend.Services.TransactionService;
         private readonly ILogger<TransactionService> _logger;
         private readonly IWalletService _walletService;
         private readonly IWalletUnlockService _walletUnlockService;
+        private readonly string? _ethKey;
 
         public TransactionService(IConfiguration configuration, ILogger<TransactionService> logger, IMapper mapper, WalletContext context, IWalletService walletService, IWalletUnlockService walletUnlockService)
         {
             _context = context;
             _mapper = mapper;
+        _ethKey = Environment.GetEnvironmentVariable("EthereumKey");
             _walletService = walletService;
             _logger = logger;
-            _nodeUrl = configuration["Ethereum:NodeUrl"];
+            _nodeUrl = configuration.GetValue<string>("Ethereum:NodeUrl",  $"https://eth-sepolia.g.alchemy.com/v2/{_ethKey}");
             _walletUnlockService = walletUnlockService;  
+          
         }
             
         
@@ -55,88 +61,131 @@ namespace WalletBackend.Services.TransactionService;
         }
 
         public async Task<TransactionResult> SendEthereumAsync(CurrencyTransactionRequest request)
+{
+    try
+    {
+        // 1. Validate receiver address
+        if (!Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.ReceiverAddress))
         {
-            // Use your existing SendMoneyAsync logic here
-            // Just adapt it to work with the new structure
-
-            if (!_walletUnlockService.TryGetPrivateKey(request.WalletId, out var privateKey))
+            return new TransactionResult
             {
-                return new TransactionResult
-                {
-                    Success = false,
-                    Message = "Wallet is locked. Please unlock your wallet first."
-                };
-            }
-
-            // Create transaction with currency info
-            var blockchainResponse = await SubmitToEthereumNetworkAsync(privateKey, request);
-            _logger.LogInformation("Blockchain response JSON:\n{Json}", 
-                JsonSerializer.Serialize(blockchainResponse, new JsonSerializerOptions { WriteIndented = true }));
-
-
-
-
-// 3) build the transaction only once
-            var tx = new Transaction
-            {
-                Id = Guid.NewGuid(),
-                WalletId = request.WalletId,
-                Amount = request.Amount,
-                Currency = CurrencyType.ETH,
-                Type = TransactionType.Debit,
-                Description = request.Description,
-              
-                SenderAddress = request.SenderAddress,
-                ReceiverAddress = request.ReceiverAddress,
-                Status = blockchainResponse.Mined && blockchainResponse.TransactionStatus
-                    ? TransactionStatus.Pending
-                    : TransactionStatus.Failed,
-                TransactionHash = blockchainResponse.TransactionHash,
-                BlockchainReference = blockchainResponse.TransactionHash,
-                BlockNumber = blockchainResponse.BlockNumber,
-                CreatedAt = DateTime.UtcNow,
-                Timestamp = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
+                Success = false,
+                Message = $"Invalid receiver address: {request.ReceiverAddress}"
             };
-
-            _context.Transactions.Add(tx);
-            await _context.SaveChangesAsync();
-
-            if (tx.Status == TransactionStatus.Pending)
-            {
-                await UpdateCurrencyBalance(request.WalletId, CurrencyType.ETH, -request.Amount);
-                return new TransactionResult
-                {
-                    Success = true,
-                    TransactionId = tx.Id,
-                    BlockchainReference = tx.TransactionHash,
-                    Message = "Transaction is pending confirmation"
-                };
-            }
-            else
-            {
-                return new TransactionResult
-                {
-                    Success = false,
-                    TransactionId = tx.Id,
-                    Message = blockchainResponse.ErrorMessage ?? "Transaction failed"
-                };
-            }
         }
+
+        // 2. Check if private key is accessible
+        if (!_walletUnlockService.TryGetPrivateKey(request.WalletId, out var privateKey))
+        {
+            return new TransactionResult
+            {
+                Success = false,
+                Message = "Wallet is locked. Please unlock your wallet first."
+            };
+        }
+
+        _logger.LogInformation(_nodeUrl);
+        
+        var web3 = CreateWeb3(privateKey);
+
+
+        // 3. Check ETH balance
+        var balanceWei = await web3.Eth.GetBalance.SendRequestAsync(request.SenderAddress);
+        var balanceEth = Web3.Convert.FromWei(balanceWei);
+
+        if (balanceEth < request.Amount)
+        {
+            return new TransactionResult
+            {
+                Success = false,
+                Message = $"Insufficient ETH balance. Wallet has {balanceEth} ETH, tried to send {request.Amount} ETH"
+            };
+        }
+
+        // 4. Submit to Ethereum network
+        var blockchainResponse = await SubmitToEthereumNetworkAsync(privateKey, request);
+
+        _logger.LogInformation("Blockchain response JSON:\n{Json}",
+            JsonSerializer.Serialize(blockchainResponse, new JsonSerializerOptions { WriteIndented = true }));
+
+        // 5. Build the transaction record
+        var tx = new Transaction
+        {
+            Id = Guid.NewGuid(),
+            WalletId = request.WalletId,
+            Amount = request.Amount,
+            Currency = CurrencyType.ETH,
+            Type = TransactionType.Debit,
+            Description = request.Description,
+            SenderAddress = request.SenderAddress,
+            ReceiverAddress = request.ReceiverAddress,
+            Status = blockchainResponse.Mined && blockchainResponse.TransactionStatus
+                ? TransactionStatus.Pending
+                : TransactionStatus.Failed,
+            TransactionHash = blockchainResponse.TransactionHash,
+            BlockchainReference = blockchainResponse.TransactionHash,
+            BlockNumber = blockchainResponse.BlockNumber,
+            CreatedAt = DateTime.UtcNow,
+            Timestamp = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+        _context.Transactions.Add(tx);
+        await _context.SaveChangesAsync();
+
+        // 6. Adjust balance if successful
+        if (tx.Status == TransactionStatus.Pending)
+        {
+            await UpdateCurrencyBalance(request.WalletId, CurrencyType.ETH, -request.Amount);
+
+            return new TransactionResult
+            {
+                Success = true,
+                TransactionId = tx.Id,
+                BlockchainReference = tx.TransactionHash,
+                Message = "Transaction is pending confirmation"
+            };
+        }
+        else
+        {
+            return new TransactionResult
+            {
+                Success = false,
+                TransactionId = tx.Id,
+                Message = blockchainResponse.ErrorMessage ?? "Transaction failed"
+            };
+        }
+    }
+    catch (RpcResponseException rpcEx)
+    {
+        _logger.LogError(rpcEx, "RPC error while sending ETH transaction");
+        return new TransactionResult
+        {
+            Success = false,
+            Message = $"RPC error: {rpcEx.Message}"
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Unexpected error while sending ETH transaction");
+        return new TransactionResult
+        {
+            Success = false,
+            Message = $"Unexpected error: {ex.Message}"
+        };
+    }
+}
+
 
 
         private async Task<BlockchainResponse> SubmitToEthereumNetworkAsync(
-            string privateKeyHex,
+            string privateKey,
             TransactionRequest request)
         {
             try
             {
-                // 1) Create an Account directly from the hex‐encoded private key
-                //    (11155111 is the Sepolia chain ID; change if you’re on a different network)
-                var account = new Nethereum.Web3.Accounts.Account(privateKeyHex, chainId: 11155111);
+                var web3 = CreateWeb3(privateKey);
 
-                // 2) Initialize Web3 using that account
-                var web3 = new Nethereum.Web3.Web3(account, _nodeUrl);
 
                 // 3) Send the Ether transfer & wait for the receipt
                 var transactionReceipt = await web3
@@ -479,7 +528,10 @@ namespace WalletBackend.Services.TransactionService;
 
             walletBalance.Balance += amount;
             walletBalance.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
         }
+
         
         public async Task UpdateCurrencyBalancesBulkAsync(
             IEnumerable<(Guid WalletId, CurrencyType Currency, decimal Amount)> updates)
@@ -590,7 +642,12 @@ namespace WalletBackend.Services.TransactionService;
                         .Take(take));
 
         
-        
+        private Web3 CreateWeb3(string privateKey)
+        {
+            var account =  new Nethereum.Web3.Accounts.Account(privateKey, 11155111); // Sepolia
+            return new Web3(account, _nodeUrl);
+        }
+
         
         
         
