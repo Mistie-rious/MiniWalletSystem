@@ -1,0 +1,15 @@
+/home/mistie/Documents/projects/zone wallet/LoadTest/bin/Debug/net9.0/LoadTest
+/home/mistie/Documents/projects/zone wallet/LoadTest/bin/Debug/net9.0/LoadTest.deps.json
+/home/mistie/Documents/projects/zone wallet/LoadTest/bin/Debug/net9.0/LoadTest.runtimeconfig.json
+/home/mistie/Documents/projects/zone wallet/LoadTest/bin/Debug/net9.0/LoadTest.dll
+/home/mistie/Documents/projects/zone wallet/LoadTest/bin/Debug/net9.0/LoadTest.pdb
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.GeneratedMSBuildEditorConfig.editorconfig
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.AssemblyInfoInputs.cache
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.AssemblyInfo.cs
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.csproj.CoreCompileInputs.cache
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.sourcelink.json
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.dll
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/refint/LoadTest.dll
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.pdb
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/LoadTest.genruntimeconfig.cache
+/home/mistie/Documents/projects/zone wallet/LoadTest/obj/Debug/net9.0/ref/LoadTest.dll
